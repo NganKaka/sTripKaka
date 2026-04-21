@@ -43,6 +43,12 @@ class LocationOut(LocationBase):
         from_attributes = True
 
 
+class PaginatedLocations(BaseModel):
+    items: List[LocationOut]
+    total: int
+    has_more: bool
+
+
 class StatsOut(BaseModel):
     total_locations: int
     total_chapters: int

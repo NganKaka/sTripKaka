@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
+import os
+import shutil
 
 import models
 import schemas
@@ -16,6 +18,8 @@ app = FastAPI(
     description="REST API for the Voyager personal travel journal.",
     version="1.2.0",
 )
+
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "public", "uploads")
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
@@ -50,6 +54,27 @@ def get_locations(
     if highlight_type:
         query = query.filter(models.Location.highlight_type == highlight_type)
     return query.offset(skip).limit(limit).all()
+
+
+@app.get("/api/locations/paginated", response_model=schemas.PaginatedLocations, tags=["Locations"])
+def get_locations_paginated(
+    skip: int = 0,
+    limit: int = 10,
+    highlight_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Location)
+    if highlight_type:
+        query = query.filter(models.Location.highlight_type == highlight_type)
+    
+    total = query.count()
+    items = query.order_by(models.Location.visited_date.desc()).offset(skip).limit(limit).all()
+    
+    return {
+        "items": items,
+        "total": total,
+        "has_more": skip + limit < total
+    }
 
 
 @app.get("/api/locations/{location_id}", response_model=schemas.LocationOut, tags=["Locations"])
@@ -102,6 +127,25 @@ def delete_location(location_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Location not found")
     db.delete(loc)
     db.commit()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Uploads
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/api/upload", tags=["Uploads"])
+async def upload_image(file: UploadFile = File(...)):
+    # Create the directory if it doesn't exist
+    if not os.path.exists(UPLOAD_DIR):
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+    
+    # Secure filename or just use original for now
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    return {"url": f"/uploads/{file.filename}"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -124,8 +124,13 @@ export default function InteractiveMap() {
                 animation:ping 2s cubic-bezier(0,0,0.2,1) infinite;
               "></div>` : ''}
           </div>`;
-        markerEl.addEventListener('mouseenter', () => { markerEl.style.transform = 'scale(1.5)'; });
-        markerEl.addEventListener('mouseleave', () => { markerEl.style.transform = 'scale(1)'; });
+        const dotEl = markerEl.firstElementChild as HTMLDivElement;
+        markerEl.addEventListener('mouseenter', () => { 
+          if (dotEl) dotEl.style.transform = 'scale(1.5)'; 
+        });
+        markerEl.addEventListener('mouseleave', () => { 
+          if (dotEl) dotEl.style.transform = 'scale(1)'; 
+        });
 
         const popup = new mapboxgl.Popup({ offset: 15, closeButton: false, closeOnClick: true, maxWidth: '280px', className: 'voyager-popup' })
           .setHTML(`

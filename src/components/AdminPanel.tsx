@@ -175,6 +175,10 @@ export default function AdminPanel() {
   const [editing, setEditing] = useState<string | null>(null); // location id being edited
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<'list' | 'form'>('list');
@@ -182,6 +186,17 @@ export default function AdminPanel() {
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === 'vohoangngan85' && password === 'vohoangngan85') {
+      setIsLoggedIn(true);
+      setLoginError('');
+      showToast('Login successful', 'success');
+    } else {
+      setLoginError('Invalid credentials');
+    }
   };
 
   const fetchLocations = async () => {
@@ -272,6 +287,65 @@ export default function AdminPanel() {
     setActiveSection('list');
   };
 
+  if (!isLoggedIn) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass-card rounded-2xl p-8 ghost-border max-w-sm w-full mx-4 space-y-6 bg-surface-container/40 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
+        >
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 border border-primary/20">
+              <Star size={32} className="text-primary" />
+            </div>
+            <h1 className="font-headline text-2xl font-black text-on-surface">Voyager Admin</h1>
+            <p className="text-secondary/60 text-xs uppercase tracking-widest font-tech mt-1">Authorized Personnel Only</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-tech uppercase tracking-widest text-secondary/70 ml-1">Username</label>
+              <input 
+                type="text" 
+                className={inputCls} 
+                value={username} 
+                onChange={e => setUsername(e.target.value)}
+                placeholder="Enter username"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-tech uppercase tracking-widest text-secondary/70 ml-1">Password</label>
+              <input 
+                type="password" 
+                className={inputCls} 
+                value={password} 
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Enter password"
+              />
+            </div>
+            {loginError && (
+              <p className="text-red-400 text-xs flex items-center gap-1.5 px-1">
+                <AlertCircle size={14} /> {loginError}
+              </p>
+            )}
+            <button 
+              type="submit"
+              className="w-full py-3 bg-primary text-background font-headline font-bold rounded-xl text-sm shadow-[0_0_20px_rgba(233,195,73,0.3)] hover:shadow-[0_0_30px_rgba(233,195,73,0.5)] transition-all hover:scale-[1.02] cursor-pointer"
+            >
+              Access Command Center
+            </button>
+          </form>
+        </motion.div>
+        
+        {/* Toast notification for login success/error */}
+        <AnimatePresence>
+          {toast && <Toast msg={toast.msg} type={toast.type} />}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 pb-16">
       {/* Header */}
@@ -283,12 +357,20 @@ export default function AdminPanel() {
           </h1>
           <p className="text-secondary/60 text-sm mt-1">Manage your travel locations database</p>
         </div>
-        <button
-          onClick={() => { cancelForm(); setActiveSection(activeSection === 'form' ? 'list' : 'form'); }}
-          className="flex items-center gap-2 px-6 py-3 bg-primary text-background font-headline font-bold rounded-xl text-sm shadow-[0_0_20px_rgba(233,195,73,0.4)] hover:shadow-[0_0_30px_rgba(233,195,73,0.7)] transition-all hover:scale-[1.02] cursor-pointer"
-        >
-          {activeSection === 'form' ? <><X size={16} /> Cancel</> : <><Plus size={16} /> Add Location</>}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setIsLoggedIn(false)}
+            className="flex items-center gap-2 px-4 py-3 bg-white/5 text-secondary hover:text-on-surface font-headline font-bold rounded-xl text-sm border border-white/10 transition-all cursor-pointer"
+          >
+            Logout
+          </button>
+          <button
+            onClick={() => { cancelForm(); setActiveSection(activeSection === 'form' ? 'list' : 'form'); }}
+            className="flex items-center gap-2 px-6 py-3 bg-primary text-background font-headline font-bold rounded-xl text-sm shadow-[0_0_20px_rgba(233,195,73,0.4)] hover:shadow-[0_0_30px_rgba(233,195,73,0.7)] transition-all hover:scale-[1.02] cursor-pointer"
+          >
+            {activeSection === 'form' ? <><X size={16} /> Cancel</> : <><Plus size={16} /> Add Location</>}
+          </button>
+        </div>
       </div>
 
       {/* Tab Row */}

@@ -66,10 +66,20 @@ function Typewriter({ words }: { words: string[] }) {
     return () => clearTimeout(timeout);
   }, [text, isDeleting, index, words]);
 
+  // Find the longest word to reserve space and prevent layout shifts
+  const longestWord = words.reduce((a, b) => a.length > b.length ? a : b, "");
+
   return (
-    <span className="text-primary inline-flex relative min-h-[1.2em]">
-      {text}
-      <span className="animate-pulse absolute -right-[0.5em]">_</span>
+    <span className="text-primary inline-grid relative">
+      {/* Ghost text to reserve space */}
+      <span className="invisible pointer-events-none select-none col-start-1 row-start-1">
+        {longestWord}
+      </span>
+      {/* Visible typing text */}
+      <span className="col-start-1 row-start-1 whitespace-nowrap">
+        {text}
+        <span className="animate-pulse inline-block ml-0.5">_</span>
+      </span>
     </span>
   );
 }
