@@ -270,7 +270,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
             <MagneticCard 
               key={i} 
               onClick={() => setActiveTab('Destinations')}
-              className="group relative rounded-2xl overflow-hidden bg-white/[0.04] backdrop-blur-md border border-white/[0.08] hover:border-cyan-400/40 hover:shadow-[0_0_40px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-500 cursor-pointer"
+              className="group relative rounded-2xl overflow-hidden bg-white/[0.04] backdrop-blur-md border border-white/[0.08] hover:border-cyan-400/40 hover:shadow-[0_0_40px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition-[border-color,box-shadow,background-color] duration-500 cursor-pointer"
             >
               {/* Scanline Effect */}
               <div className="absolute top-0 left-0 w-full h-[2px] bg-cyan-400/50 shadow-[0_0_15px_rgba(34,211,238,1)] -translate-y-[10px] group-hover:animate-scan z-50 pointer-events-none opacity-0 group-hover:opacity-100" />
