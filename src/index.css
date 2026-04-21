@@ -1,9 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-headline: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Manrope", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-tech: "JetBrains Mono", monospace;
+  --font-display: "Space Grotesk", sans-serif;
   
   --color-primary: #e9c349;
   --color-primary-fixed-dim: #e9c349;
@@ -19,8 +21,70 @@
 
 @layer base {
   body {
-    @apply bg-background text-on-surface font-body;
+    @apply bg-background text-on-surface font-body antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="6" stroke="%23e9c349" stroke-width="1.5"/><path d="M16 4 L16 10 M16 22 L16 28 M4 16 L10 16 M22 16 L28 16" stroke="%23e9c349" stroke-width="1.5" stroke-linecap="round"/><circle cx="16" cy="16" r="1.5" fill="%2322d3ee"/></svg>') 16 16, auto;
   }
+  
+  a, button, [role="button"], .cursor-pointer, input, select {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="6" stroke="%2322d3ee" stroke-width="2"/><path d="M16 2 L16 12 M16 20 L16 30 M2 16 L12 16 M20 16 L30 16" stroke="%2322d3ee" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="2.5" fill="%23e9c349"/></svg>') 16 16, pointer !important;
+  }
+}
+
+@keyframes scan {
+  0% { transform: translateY(-10px); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(400px); opacity: 0; }
+}
+.animate-scan {
+  animation: scan 2s linear infinite;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw-icon path, .draw-icon circle, .draw-icon rect, .draw-icon line, .draw-icon polyline, .draw-icon polygon {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: draw 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes dashoffset-loop {
+  0% { stroke-dashoffset: 200; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes waveform {
+  0%, 100% { height: 2px; }
+  50% { height: 12px; }
+}
+.waveform-bar {
+  animation: waveform 1s ease-in-out infinite;
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.glitch-img {
+  transition: all 0.2s ease;
+}
+
+@keyframes glitch-anim {
+  0% { filter: hue-rotate(0deg); transform: scale(1.1) translate(0); }
+  20% { filter: hue-rotate(90deg); transform: scale(1.1) translate(-2px, 2px); }
+  40% { filter: hue-rotate(-90deg); transform: scale(1.1) translate(2px, -2px); }
+  60% { filter: hue-rotate(45deg); transform: scale(1.1) translate(-2px, -2px); }
+  80% { filter: hue-rotate(-45deg); transform: scale(1.1) translate(2px, 2px); }
+  100% { filter: hue-rotate(0deg); transform: scale(1.1) translate(0); }
+}
+
+.group:hover .glitch-img {
+  animation: glitch-anim 0.3s cubic-bezier(.25, .46, .45, .94) both;
 }
 
 .glass-card {
@@ -33,4 +97,90 @@
 
 .ambient-shadow {
   @apply shadow-[0_40px_40px_rgba(0,0,0,0.4)];
+}
+
+@keyframes border-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.neon-border-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.neon-border-wrapper::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(transparent, transparent, transparent, #22d3ee);
+  animation: border-spin 2s linear infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.neon-border-wrapper:hover::before {
+  opacity: 1;
+}
+
+.neon-border-content {
+  position: absolute;
+  inset: 1px;
+  background: var(--color-surface-container);
+  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mapbox GL Popup Overrides */
+.voyager-popup .mapboxgl-popup-content {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+.voyager-popup .mapboxgl-popup-tip {
+  border-top-color: rgba(29, 32, 35, 0.85) !important;
+  border-bottom-color: rgba(29, 32, 35, 0.85) !important;
+}
+
+.mapboxgl-ctrl-group {
+  background: rgba(29, 32, 35, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+.mapboxgl-ctrl-group button {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.mapboxgl-ctrl-group button + button {
+  border-top: none !important;
+}
+
+.mapboxgl-ctrl button .mapboxgl-ctrl-icon {
+  filter: invert(1) brightness(0.7);
+}
+
+.mapboxgl-ctrl button:hover .mapboxgl-ctrl-icon {
+  filter: invert(1) brightness(1);
+}
+
+/* Hide Mapbox Logo and Attribution */
+.mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-logo {
+  display: none !important;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
 }

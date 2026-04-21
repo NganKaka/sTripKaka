@@ -3,21 +3,27 @@ import { Mail, Github, Facebook, Instagram } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="w-full bg-background/30 backdrop-blur-xl border-t border-white/5 py-12 px-6 md:px-12 mt-20">
+    <footer className="w-full bg-background border-t border-white/10 py-12 px-6 md:px-12 mt-auto relative z-50">
       <div className="max-w-7xl mx-auto flex flex-col items-center gap-8">
         <div className="flex gap-8">
-          {[Mail, Github, Facebook, Instagram].map((Icon, i) => (
+          {[
+            { icon: Mail, href: "mailto:vohoangngan85@gmail.com" },
+            { icon: Github, href: "https://github.com/NganKaka" },
+            { icon: Facebook, href: "https://www.facebook.com/hoang.ngan.399/" },
+            { icon: Instagram, href: "https://www.instagram.com/auag.hoang/" }
+          ].map((social, i) => (
             <motion.a
               key={i}
-              href="#"
+              href={social.href}
+              target="_blank"
+              rel="noopener noreferrer"
               whileHover={{ 
                 scale: 1.1,
-                textShadow: "0 0 8px rgba(233, 195, 73, 0.8)",
-                color: "#e9c349"
+                color: "#22d3ee" // Cyan glowing
               }}
-              className="text-secondary/50 transition-colors"
+              className="text-secondary/50 transition-colors cursor-pointer group"
             >
-              <Icon size={24} />
+              <social.icon size={24} className="group-hover:drop-shadow-[0_0_10px_rgba(34,211,238,0.8)] transition-all" />
             </motion.a>
           ))}
         </div>
