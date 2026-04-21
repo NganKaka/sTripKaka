@@ -127,7 +127,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
 
   const chapters = [
     { title: "Sunset over Phu Quoc", loc: "Phu Quoc, VN", desc: "Golden hour painting the ocean. A perfect escape into the warm coastal breeze.", img: "/phu_quoc/pq_landscape_sea.jpg" },
-    { title: "Neon Reflections", loc: "Seoul, KR", desc: "The rain washed away the daytime noise, leaving only the reflection of thousand neon signs.", img: "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&q=80&w=800" },
+    { title: "Imperial Echoes", loc: "Hue, VN", desc: "Walking through the ancient citadel, feeling the quiet pulse of a dynasty long past.", img: "/hue/hue_landscape_2.jpg" },
     { title: "The Silent Pines", loc: "Hokkaido, JP", desc: "Deep in the northern forests, absolute silence reigns supreme. A stark contrast to the buzzing cities.", img: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=800" }
   ];
 
