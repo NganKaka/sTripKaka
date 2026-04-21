@@ -113,8 +113,10 @@ export function MagneticCard({ children, onClick, className }: any) {
     </motion.div>
   );
 }
+import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard({ setActiveTab }: DashboardProps) {
+  const navigate = useNavigate();
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 1000], [0, -150]);
   const y2 = useTransform(scrollY, [0, 1000], [0, -250]);
@@ -126,9 +128,9 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
   ];
 
   const chapters = [
-    { title: "Sunset over Phu Quoc", loc: "Phu Quoc, VN", desc: "Golden hour painting the ocean. A perfect escape into the warm coastal breeze.", img: "/phu_quoc/pq_landscape_sea.jpg" },
-    { title: "Imperial Echoes", loc: "Hue, VN", desc: "Walking through the ancient citadel, feeling the quiet pulse of a dynasty long past.", img: "/hue/hue_landscape_2.jpg" },
-    { title: "The Silent Pines", loc: "Hokkaido, JP", desc: "Deep in the northern forests, absolute silence reigns supreme. A stark contrast to the buzzing cities.", img: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=800" }
+    { id: "phu_quoc", title: "Sunset over Phu Quoc", loc: "Phu Quoc, VN", desc: "Golden hour painting the ocean. A perfect escape into the warm coastal breeze.", img: "/phu_quoc/pq_landscape_sea.jpg" },
+    { id: "hue", title: "Imperial Echoes", loc: "Hue, VN", desc: "Walking through the ancient citadel, feeling the quiet pulse of a dynasty long past.", img: "/hue/hue_landscape_2.jpg" },
+    { id: "hokkaido", title: "The Silent Pines", loc: "Hokkaido, JP", desc: "Deep in the northern forests, absolute silence reigns supreme. A stark contrast to the buzzing cities.", img: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=800" }
   ];
 
   return (
@@ -269,7 +271,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
           {chapters.map((c, i) => (
             <MagneticCard 
               key={i} 
-              onClick={() => setActiveTab('Destinations')}
+              onClick={() => navigate(`/mission-detail/${c.id}`)}
               className="group relative rounded-2xl overflow-hidden bg-white/[0.04] backdrop-blur-md border border-white/[0.08] hover:border-cyan-400/40 hover:shadow-[0_0_40px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition-[border-color,box-shadow,background-color] duration-500 cursor-pointer"
             >
               {/* Scanline Effect */}
