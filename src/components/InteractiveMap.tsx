@@ -12,8 +12,8 @@ interface LocationData {
   img: string;
   date: string;
   type: 'primary' | 'secondary' | 'highlight';
-  // radius in km for the highlight circle
   radiusKm: number;
+  dbId?: string; // Add this to track if it exists in DB
 }
 
 const locations: LocationData[] = [
@@ -51,9 +51,24 @@ export default function InteractiveMap() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [dbLocationIds, setDbLocationIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!mapContainer.current || map.current) return;
+    fetch('http://localhost:8000/api/locations')
+      .then(res => res.json())
+      .then(data => {
+        const ids = new Set(data.map((l: any) => l.id.toLowerCase()));
+        setDbLocationIds(ids);
+      })
+      .catch(err => console.error("Error fetching location IDs:", err));
+  }, []);
+
+  useEffect(() => {
+    if (!mapContainer.current) return;
+    if (map.current) {
+        map.current.remove();
+        map.current = null;
+    }
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -132,6 +147,9 @@ export default function InteractiveMap() {
           if (dotEl) dotEl.style.transform = 'scale(1)'; 
         });
 
+        const lowerName = loc.name.toLowerCase().replace(/\s+/g, '_');
+        const hasDb = dbLocationIds.has(lowerName);
+
         const popup = new mapboxgl.Popup({ offset: 15, closeButton: false, closeOnClick: true, maxWidth: '280px', className: 'voyager-popup' })
           .setHTML(`
             <div style="background:rgba(29,32,35,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:12px;border:1px solid rgba(255,255,255,0.1);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5),0 0 30px rgba(233,195,73,0.1);">
@@ -142,7 +160,21 @@ export default function InteractiveMap() {
                   <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(187,201,208,0.5);">${loc.date}</span>
                 </div>
                 <h4 style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:15px;color:#e1e2e7;margin:0 0 6px;">${loc.name}</h4>
-                <p style="font-family:'Manrope',serif;font-size:11px;line-height:1.5;color:rgba(187,201,208,0.7);margin:0;">${loc.desc}</p>
+                <p style="font-family:'Manrope',serif;font-size:11px;line-height:1.5;color:rgba(187,201,208,0.7);margin:0 0 12px;">${loc.desc}</p>
+                
+                ${hasDb ? `
+                  <a href="#/mission-detail/${lowerName}" 
+                     onclick="window.location.hash='#/mission-detail/${lowerName}'; window.location.reload();"
+                     style="display:block;text-align:center;background:${color};color:#000;padding:8px;border-radius:6px;font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:800;text-decoration:none;letter-spacing:0.1em;transition:all 0.3s;box-shadow:0 10px 20px -5px ${color}66;"
+                     onmouseover="this.style.opacity='0.8';this.style.transform='translateY(-1px)'"
+                     onmouseout="this.style.opacity='1';this.style.transform='translateY(0)'">
+                    OPEN EXPEDITION LOG
+                  </a>
+                ` : `
+                  <div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(187,201,208,0.3);border-top:1px solid rgba(255,255,255,0.05);padding-top:10px;letter-spacing:0.1em;">
+                    [SYSTEM_REF: NO_DB_RECORD]
+                  </div>
+                `}
               </div>
             </div>`);
 
@@ -151,7 +183,7 @@ export default function InteractiveMap() {
     });
 
     return () => { map.current?.remove(); map.current = null; };
-  }, []);
+  }, [dbLocationIds]);
 
   return (
     <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.4)]">

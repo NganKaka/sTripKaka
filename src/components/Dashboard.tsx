@@ -91,8 +91,10 @@ export function MagneticCard({ children, onClick, className }: any) {
   const mouseXSpring = useSpring(x, { stiffness: 150, damping: 15 });
   const mouseYSpring = useSpring(y, { stiffness: 150, damping: 15 });
   
-  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["7deg", "-7deg"]);
-  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-7deg", "7deg"]);
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["15deg", "-15deg"]);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-15deg", "15deg"]);
+  const translateX = useTransform(mouseXSpring, [-0.5, 0.5], ["-30px", "30px"]);
+  const translateY = useTransform(mouseYSpring, [-0.5, 0.5], ["-30px", "30px"]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -113,7 +115,7 @@ export function MagneticCard({ children, onClick, className }: any) {
     <motion.div
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      style={{ rotateY, rotateX, transformStyle: "preserve-3d" }}
+      style={{ rotateY, rotateX, x: translateX, y: translateY, transformStyle: "preserve-3d" }}
       onClick={onClick}
       className={className}
     >
@@ -137,11 +139,24 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
     { icon: MapIcon, value: "7", label: "Regions Mapped" }
   ];
 
+  const [dbChapters, setDbChapters] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/api/locations?limit=3')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.length > 0) setDbChapters(data);
+      })
+      .catch(err => console.error("Error fetching chapters:", err));
+  }, []);
+
   const chapters = [
-    { id: "phu_quoc", title: "Sunset over Phu Quoc", loc: "Phu Quoc, VN", desc: "Golden hour painting the ocean. A perfect escape into the warm coastal breeze.", img: "/phu_quoc/pq_landscape_sea.jpg" },
-    { id: "hue", title: "Imperial Echoes", loc: "Hue, VN", desc: "Walking through the ancient citadel, feeling the quiet pulse of a dynasty long past.", img: "/hue/hue_landscape_2.jpg" },
-    { id: "hokkaido", title: "The Silent Pines", loc: "Hokkaido, JP", desc: "Deep in the northern forests, absolute silence reigns supreme. A stark contrast to the buzzing cities.", img: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=800" }
+    { id: "phu_quoc", name: "Sunset over Phu Quoc", chapter: "Chapter IX", short_desc: "Golden hour painting the ocean. A perfect escape into the warm coastal breeze.", img: "/phu_quoc/pq_landscape_sea.jpg", lat: "10.2899", lng: "103.9840" },
+    { id: "hue", name: "Imperial Echoes", chapter: "Chapter III", short_desc: "Walking through the ancient citadel, feeling the quiet pulse of a dynasty long past.", img: "/hue/hue_landscape_2.jpg", lat: "16.4637", lng: "107.5909" },
+    { id: "hokkaido", name: "The Silent Pines", chapter: "Chapter XII", short_desc: "Deep in the northern forests, absolute silence reigns supreme.", img: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=800", lat: "43.0641", lng: "141.3469" }
   ];
+
+  const displayList = dbChapters.length > 0 ? dbChapters : chapters;
 
   return (
     <div className="space-y-24">
@@ -171,33 +186,39 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
 
         <div className="relative h-[500px] hidden md:block">
           <motion.div style={{ y: y1 }} className="absolute top-0 right-12 z-20">
-            <motion.div 
-              animate={{ y: [0, -20, 0] }}
-              transition={{ duration: 6, ease: "easeInOut", repeat: Infinity }}
-              className="w-48 h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
-            >
-              <img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
-            </motion.div>
+            <MagneticCard>
+              <motion.div 
+                animate={{ y: [0, -20, 0] }}
+                transition={{ duration: 6, ease: "easeInOut", repeat: Infinity }}
+                className="w-48 h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+              >
+                <img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
+              </motion.div>
+            </MagneticCard>
           </motion.div>
           
           <motion.div style={{ y: y2 }} className="absolute top-32 right-64 z-30">
-            <motion.div 
-              animate={{ y: [0, 25, 0] }}
-              transition={{ duration: 8, ease: "easeInOut", repeat: Infinity }}
-              className="w-56 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
-            >
-              <img src="https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
-            </motion.div>
+            <MagneticCard>
+              <motion.div 
+                animate={{ y: [0, 25, 0] }}
+                transition={{ duration: 8, ease: "easeInOut", repeat: Infinity }}
+                className="w-56 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+              >
+                <img src="https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
+              </motion.div>
+            </MagneticCard>
           </motion.div>
           
           <motion.div style={{ y: y3 }} className="absolute top-10 right-[-20px] z-40">
-            <motion.div 
-              animate={{ y: [0, -15, 0] }}
-              transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
-              className="w-40 h-40 rounded-full overflow-hidden shadow-2xl border-4 border-background"
-            >
-              <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
-            </motion.div>
+            <MagneticCard>
+              <motion.div 
+                animate={{ y: [0, -15, 0] }}
+                transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
+                className="w-40 h-40 rounded-full overflow-hidden shadow-2xl border-4 border-background"
+              >
+                <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
+              </motion.div>
+            </MagneticCard>
           </motion.div>
         </div>
       </section>
@@ -244,7 +265,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
         <h2 className="font-display text-3xl font-bold tracking-tight mb-12 text-on-surface relative z-10">Voyage Metrics</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
           {metrics.map((m, i) => (
-            <div key={i} className="group relative flex items-center gap-6 p-6 rounded-2xl bg-white/[0.04] backdrop-blur-md border border-white/[0.08] hover:border-cyan-400/30 hover:bg-white/[0.08] hover:shadow-[0_0_40px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-500 cursor-default">
+            <MagneticCard key={i} className="group relative flex items-center gap-6 p-6 rounded-2xl bg-white/[0.04] backdrop-blur-md border border-white/[0.08] hover:border-cyan-400/30 hover:bg-white/[0.08] hover:shadow-[0_0_40px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-500 cursor-default">
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
               <div className="w-16 h-16 rounded-xl bg-primary/10 backdrop-blur-sm flex items-center justify-center text-primary border border-primary/20 group-hover:scale-110 group-hover:bg-cyan-500/15 group-hover:border-cyan-400/50 group-hover:text-cyan-400 transition-all duration-300 relative z-10">
                 <AnimatedIcon icon={m.icon} size={32} />
@@ -255,7 +276,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
                 </div>
                 <div className="text-[10px] text-secondary font-tech uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100 group-hover:text-cyan-100 transition-all duration-300 transform group-hover:translate-x-1">{m.label}</div>
               </div>
-            </div>
+            </MagneticCard>
           ))}
         </div>
       </motion.section>
@@ -266,53 +287,67 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-100px" }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="space-y-12"
+        className="space-y-12 overflow-hidden"
       >
-        <div className="flex justify-between items-end">
+        <div className="flex justify-between items-end mr-4">
           <div>
             <h2 className="font-headline text-3xl font-bold tracking-tight text-on-surface">Recent Chapters</h2>
-            <p className="text-secondary mt-2 font-body">Latest entries from the nocturnal log.</p>
+            <p className="text-secondary mt-2 font-body">Real-time coordinates and journals from the database.</p>
           </div>
           <button onClick={() => setActiveTab('Journal')} className="text-primary font-bold text-sm tracking-wide hover:underline underline-offset-8 transition-all cursor-pointer">
-            View Archive
+            View Journey Log
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 perspective-1000">
-          {chapters.map((c, i) => (
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {displayList.slice(0, 3).map((c, i) => (
             <MagneticCard 
-              key={i} 
+              key={`${c.id}-${i}`}
               onClick={() => navigate(`/mission-detail/${c.id}`)}
-              className="group relative rounded-2xl overflow-hidden bg-white/[0.04] backdrop-blur-md border border-white/[0.08] hover:border-cyan-400/40 hover:shadow-[0_0_40px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition-[border-color,box-shadow,background-color] duration-500 cursor-pointer"
+              className="group relative rounded-2xl overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/[0.08] hover:border-primary/40 hover:shadow-[0_0_50px_rgba(233,195,73,0.15)] transition-all duration-500 cursor-pointer h-full"
             >
-              {/* Scanline Effect */}
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-cyan-400/50 shadow-[0_0_15px_rgba(34,211,238,1)] -translate-y-[10px] group-hover:animate-scan z-50 pointer-events-none opacity-0 group-hover:opacity-100" />
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-primary/50 shadow-[0_0_15px_rgba(233,195,73,1)] -translate-y-[10px] group-hover:animate-scan z-50 pointer-events-none opacity-0 group-hover:opacity-100" />
               
-              <div className="h-48 overflow-hidden relative">
-                {/* Coordinates UI overlay */}
-                <div className="absolute top-2 left-2 z-20 text-[8px] font-tech text-cyan-400/80 opacity-0 group-hover:opacity-100 transition-opacity tracking-widest">
-                  [LAT: {(Math.random() * 90).toFixed(4)}° N]
+              <div className="h-52 overflow-hidden relative">
+                <div className="absolute top-3 left-3 z-20 text-[9px] font-tech text-primary/80 opacity-0 group-hover:opacity-100 transition-opacity tracking-[0.2em] bg-background/60 backdrop-blur-md px-2 py-0.5 rounded">
+                  DAT_LAT: {c.lat || "00.0000"}° N
                 </div>
-                <div className="absolute top-2 right-2 z-20 text-[8px] font-tech text-cyan-400/80 opacity-0 group-hover:opacity-100 transition-opacity tracking-widest">
-                  [LNG: {(Math.random() * 180).toFixed(4)}° E]
+                <div className="absolute top-3 right-3 z-20 text-[9px] font-tech text-primary/80 opacity-0 group-hover:opacity-100 transition-opacity tracking-[0.2em] bg-background/60 backdrop-blur-md px-2 py-0.5 rounded">
+                  DAT_LNG: {c.lng || "000.0000"}° E
                 </div>
 
                 <img 
                   src={c.img} 
-                  alt={c.title} 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 group-hover:glitch-img" 
+                  alt={c.name} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[2s] ease-out" 
                   referrerPolicy="no-referrer"
                 />
-                <div className="absolute bottom-4 left-4 bg-background/80 backdrop-blur-md px-3 py-1 rounded-md border border-white/10 text-[10px] text-primary font-bold tracking-wider shadow-[0_0_10px_rgba(233,195,73,0.2)]">{c.loc}</div>
+                <div className="absolute bottom-4 left-4 bg-primary/20 backdrop-blur-md px-3 py-1 rounded-md border border-primary/30 text-[10px] text-primary font-bold tracking-widest uppercase">
+                  {c.chapter}
+                </div>
               </div>
-              <div className="p-6 relative">
-                <h3 className="text-xl font-bold text-on-surface mb-3 group-hover:text-cyan-400 transition-colors drop-shadow-sm">{c.title}</h3>
-                <p className="text-secondary text-sm line-clamp-2 font-body">{c.desc}</p>
-                <div className="flex justify-between items-center mt-4">
-                  <span className="text-[10px] font-tech tracking-widest text-secondary/60">FILE_REF: {i}00X</span>
-                  {/* Waveform visualizer */}
-                  <div className="flex items-end gap-[2px] h-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {[1, 2, 3, 4, 5].map(bar => (
-                      <div key={bar} className="w-[1px] bg-cyan-400 waveform-bar" style={{ animationDelay: `${bar * 0.15}s`, height: '2px' }} />
+              
+              <div className="p-7 relative bg-gradient-to-b from-transparent to-black/20">
+                <h3 className="text-2xl font-bold text-on-surface mb-3 group-hover:text-primary transition-colors tracking-tight">
+                  {c.name}
+                </h3>
+                <p className="text-secondary/70 text-sm line-clamp-2 font-body leading-relaxed mb-6">
+                  {c.short_desc}
+                </p>
+                <div className="flex justify-between items-center pt-4 border-t border-white/5">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-tech tracking-[0.3em] text-secondary/40 uppercase">Memory_ID</span>
+                    <span className="text-[10px] font-tech text-primary/60">{c.id.slice(0, 12)}...</span>
+                  </div>
+                  
+                  <div className="flex items-end gap-[3px] h-4">
+                    {[1, 2, 3, 4, 5, 6].map(bar => (
+                      <motion.div 
+                        key={bar} 
+                        animate={{ height: ["2px", "14px", "6px", "10px", "2px"] }}
+                        transition={{ duration: 1.5, repeat: Infinity, delay: bar * 0.1, ease: "easeInOut" }}
+                        className="w-[1.5px] bg-primary/60 rounded-full"
+                      />
                     ))}
                   </div>
                 </div>
@@ -321,6 +356,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
           ))}
         </div>
       </motion.section>
+
     </div>
   );
 }

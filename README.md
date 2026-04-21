@@ -18,3 +18,10 @@ View your app in AI Studio: https://ai.studio/apps/d7dabcb0-d9ed-4541-8232-a3ad7
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+Run:
+0. Turn on env: `source venv/Scripts/activate`
+
+1. Turn on proxy: `python gemini_proxy.py`
+2. Run backend: `uvicorn main:app --reload`
+3. Run frontend: `npm run dev`
