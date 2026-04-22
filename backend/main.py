@@ -24,7 +24,7 @@ UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "public", "uploads")
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3001", "http://localhost:3000"],
+    allow_origins=["https://s-trip-kaka.vercel.app""http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3001", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
