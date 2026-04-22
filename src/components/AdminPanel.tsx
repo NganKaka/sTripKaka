@@ -368,7 +368,17 @@ function Autocomplete({
 }
 
 // ── Gallery Input with Drag & Drop ────────────────────────────────────────────
-function GalleryInput({ images, onChange }: { images: string[]; onChange: (imgs: string[]) => void }) {
+function GalleryInput({
+  images,
+  onChange,
+  locationId,
+  getNextIndex,
+}: {
+  images: string[];
+  onChange: (imgs: string[]) => void;
+  locationId: string;
+  getNextIndex: () => number;
+}) {
   const [newUrl, setNewUrl] = useState('');
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -384,8 +394,12 @@ function GalleryInput({ images, onChange }: { images: string[]; onChange: (imgs:
     try {
       const urls: string[] = [];
       for (const file of arr) {
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const base = locationId || 'location';
+        const idx = getNextIndex();
+        const newFilename = `${base}_${idx}.${ext}`;
         const fd = new FormData();
-        fd.append('file', file);
+        fd.append('file', new File([file], newFilename, { type: file.type }));
         const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
         if (res.ok) {
           const data = await res.json();
@@ -517,6 +531,97 @@ function GalleryInput({ images, onChange }: { images: string[]; onChange: (imgs:
   );
 }
 
+// ── Single File Upload ───────────────────────────────────────────────────────
+function SingleFileUpload({
+  value,
+  onChange,
+  accept = 'image/*',
+  locationId,
+  getNextIndex,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  accept?: string;
+  locationId: string;
+  getNextIndex: () => number;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isVideo = accept.includes('video');
+
+  const uploadFile = async (file: File) => {
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || (isVideo ? 'mp4' : 'jpg');
+      const base = locationId || 'location';
+      const idx = getNextIndex();
+      const newFilename = `${base}_${idx}.${ext}`;
+      const fd = new FormData();
+      fd.append('file', new File([file], newFilename, { type: file.type }));
+      const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
+      if (res.ok) {
+        const data = await res.json();
+        onChange(data.url);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) uploadFile(f); }}
+        onClick={() => !uploading && fileInputRef.current?.click()}
+        className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-7 cursor-pointer transition-all select-none overflow-hidden
+          ${dragging ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(233,195,73,0.2)] scale-[1.01]' : 'border-white/10 hover:border-primary/30 hover:bg-white/5'}`}
+      >
+        <input ref={fileInputRef} type="file" accept={accept} className="hidden"
+          onChange={e => e.target.files?.[0] && uploadFile(e.target.files[0])} />
+        {uploading ? (
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 size={22} className="text-primary animate-spin" />
+            <span className="text-[10px] font-tech text-primary uppercase tracking-widest">Uploading...</span>
+          </div>
+        ) : (
+          <>
+            <div className="p-2.5 rounded-full bg-white/5 border border-white/10">
+              {isVideo ? <Film size={18} className="text-primary/50" /> : <Image size={18} className="text-primary/50" />}
+            </div>
+            <p className="text-xs font-body text-secondary/50 text-center px-4">
+              <span className="text-primary font-semibold">Click to browse</span> or drag file here
+            </p>
+            {locationId && (
+              <p className="text-[9px] font-tech text-secondary/30 uppercase tracking-widest">
+                → {locationId}_n.{isVideo ? 'mp4' : 'jpg/png'}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      {value && !uploading && (
+        <div className="relative rounded-xl overflow-hidden border border-white/10 bg-white/5">
+          {isVideo
+            ? <video src={value} className="w-full h-28 object-cover" muted />
+            : <img src={value} alt="" className="w-full h-28 object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          }
+          <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent pointer-events-none" />
+          <p className="absolute bottom-2 left-3 text-[9px] font-tech text-white/50 truncate pr-10">{value.split('/').pop()}</p>
+          <button type="button" onClick={() => onChange('')}
+            className="absolute top-2 right-2 p-1.5 rounded-full bg-background/70 border border-white/10 text-red-400 hover:bg-red-500/20 transition-all">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ msg, type }: { msg: string; type: 'success' | 'error' }) {
   return (
@@ -545,6 +650,8 @@ export default function AdminPanel() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<'list' | 'form'>('list');
+  const uploadCounterRef = useRef(1);
+  const getNextIndex = useCallback(() => uploadCounterRef.current++, []);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
@@ -628,6 +735,7 @@ export default function AdminPanel() {
       setForm({ ...EMPTY_FORM });
       setEditing(null);
       setActiveSection('list');
+      uploadCounterRef.current = 1;
       fetchLocations();
     } catch (err: any) {
       showToast(err.message || 'Something went wrong.', 'error');
@@ -640,6 +748,7 @@ export default function AdminPanel() {
     setForm({ ...loc, gallery_images: loc.gallery_images || [] });
     setEditing(loc.id);
     setActiveSection('form');
+    uploadCounterRef.current = (loc.gallery_images?.length || 0) + 1;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -659,6 +768,7 @@ export default function AdminPanel() {
     setForm({ ...EMPTY_FORM });
     setEditing(null);
     setActiveSection('list');
+    uploadCounterRef.current = 1;
   };
 
   // ── Login Screen ──────────────────────────────────────────────────────────
@@ -890,28 +1000,32 @@ export default function AdminPanel() {
                   <Image size={16} className="text-primary" /> Media
                 </h2>
 
-                <Field label="Thumbnail Image URL" icon={Image}>
-                  <input className={inputCls} value={form.img}
-                    onChange={e => setForm(f => ({ ...f, img: e.target.value }))}
-                    placeholder="/hue/hue_landscape_1.jpg or https://…" />
-                  {form.img && (
-                    <div className="mt-2 rounded-lg overflow-hidden h-28 bg-white/5">
-                      <img src={form.img} alt="preview" className="w-full h-full object-cover"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    </div>
-                  )}
+                <Field label="Thumbnail Image" icon={Image}>
+                  <SingleFileUpload
+                    value={form.img}
+                    onChange={v => setForm(f => ({ ...f, img: v }))}
+                    locationId={form.id}
+                    getNextIndex={getNextIndex}
+                  />
                 </Field>
 
-                <Field label="Hero Poster URL (TripDetail header)" icon={Image}>
-                  <input className={inputCls} value={form.hero_poster}
-                    onChange={e => setForm(f => ({ ...f, hero_poster: e.target.value }))}
-                    placeholder="Leave blank to use thumbnail" />
+                <Field label="Hero Poster (TripDetail header)" icon={Image}>
+                  <SingleFileUpload
+                    value={form.hero_poster}
+                    onChange={v => setForm(f => ({ ...f, hero_poster: v }))}
+                    locationId={form.id}
+                    getNextIndex={getNextIndex}
+                  />
                 </Field>
 
-                <Field label="Hero Video URL (optional)" icon={Film}>
-                  <input className={inputCls} value={form.hero_video}
-                    onChange={e => setForm(f => ({ ...f, hero_video: e.target.value }))}
-                    placeholder="/videos/phu_quoc.mp4" />
+                <Field label="Hero Video (optional)" icon={Film}>
+                  <SingleFileUpload
+                    value={form.hero_video}
+                    onChange={v => setForm(f => ({ ...f, hero_video: v }))}
+                    accept="video/*"
+                    locationId={form.id}
+                    getNextIndex={getNextIndex}
+                  />
                 </Field>
               </div>
             </div>
@@ -942,8 +1056,12 @@ export default function AdminPanel() {
                     {form.gallery_images.length} images
                   </span>
                 </h2>
-                <GalleryInput images={form.gallery_images}
-                  onChange={imgs => setForm(f => ({ ...f, gallery_images: imgs }))} />
+                <GalleryInput
+                  images={form.gallery_images}
+                  onChange={imgs => setForm(f => ({ ...f, gallery_images: imgs }))}
+                  locationId={form.id}
+                  getNextIndex={getNextIndex}
+                />
               </div>
 
               {/* Submit */}

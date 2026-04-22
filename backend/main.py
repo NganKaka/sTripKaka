@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -19,7 +20,9 @@ app = FastAPI(
     version="1.2.0",
 )
 
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "public", "uploads")
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
@@ -134,18 +137,12 @@ def delete_location(location_id: str, db: Session = Depends(get_db)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/api/upload", tags=["Uploads"])
-async def upload_image(file: UploadFile = File(...)):
-    # Create the directory if it doesn't exist
-    if not os.path.exists(UPLOAD_DIR):
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-    
-    # Secure filename or just use original for now
+async def upload_image(request: Request, file: UploadFile = File(...)):
     file_path = os.path.join(UPLOAD_DIR, file.filename)
-    
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    
-    return {"url": f"/uploads/{file.filename}"}
+    base_url = str(request.base_url).rstrip("/")
+    return {"url": f"{base_url}/uploads/{file.filename}"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
