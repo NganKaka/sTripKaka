@@ -1,6 +1,7 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { Mountain, UtensilsCrossed, ArrowLeft, Images } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { apiUrl } from '../lib/api';
 
 interface GalleryViewProps {
   setActiveTab: (tab: string) => void;
@@ -63,7 +64,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
 
   useEffect(() => {
     setLoading(true);
-    fetch(`http://localhost:8000/api/locations/${locationId}`)
+    fetch(apiUrl(`/locations/${locationId}`))
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(data => {
         const imgs: string[] = data.gallery_images || [];

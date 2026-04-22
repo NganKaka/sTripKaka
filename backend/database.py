@@ -8,7 +8,7 @@ load_dotenv()
 # Read from .env file — fallback to default
 SQLALCHEMY_DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/voyager_db"
+    "postgresql://postgres:postgres@localhost:5432/stripkaka_db"
 )
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)

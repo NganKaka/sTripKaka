@@ -5,6 +5,7 @@ import {
   Check, AlertCircle, Loader2, Globe, FileText, Film, Star, Calendar,
   Upload, ImagePlus
 } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 // ── Vietnam provinces with coordinates ────────────────────────────────────────
 const VN_PLACES: { name: string; lat: string; lng: string }[] = [
@@ -93,7 +94,7 @@ const HIGHLIGHT_TYPES = [
   { value: 'highlight', label: 'Highlight', color: 'text-cyan-300'  },
 ];
 
-const API = 'http://localhost:8000/api';
+const API = API_BASE_URL;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function slugify(str: string) {
@@ -673,7 +674,7 @@ export default function AdminPanel() {
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 border border-primary/20">
               <Star size={32} className="text-primary" />
             </div>
-            <h1 className="font-headline text-2xl font-black text-on-surface">Voyager Admin</h1>
+            <h1 className="font-headline text-2xl font-black text-on-surface">sTripKaka Admin</h1>
             <p className="text-secondary/60 text-xs uppercase tracking-widest font-tech mt-1">Authorized Personnel Only</p>
           </div>
 

@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { apiUrl } from '../lib/api';
 
 mapboxgl.accessToken = 'pk.dummy_token_not_real';
 
@@ -54,7 +55,7 @@ export default function InteractiveMap() {
   const [dbLocationIds, setDbLocationIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/locations')
+    fetch(apiUrl('/locations'))
       .then(res => res.json())
       .then(data => {
         const ids = new Set(data.map((l: any) => l.id.toLowerCase()));
@@ -150,7 +151,7 @@ export default function InteractiveMap() {
         const lowerName = loc.name.toLowerCase().replace(/\s+/g, '_');
         const hasDb = dbLocationIds.has(lowerName);
 
-        const popup = new mapboxgl.Popup({ offset: 15, closeButton: false, closeOnClick: true, maxWidth: '280px', className: 'voyager-popup' })
+        const popup = new mapboxgl.Popup({ offset: 15, closeButton: false, closeOnClick: true, maxWidth: '280px', className: 'stripkaka-popup' })
           .setHTML(`
             <div style="background:rgba(29,32,35,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:12px;border:1px solid rgba(255,255,255,0.1);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5),0 0 30px rgba(233,195,73,0.1);">
               <img src="${loc.img}" alt="${loc.name}" style="width:100%;height:130px;object-fit:cover;border-bottom:1px solid rgba(255,255,255,0.05);" referrerpolicy="no-referrer"/>

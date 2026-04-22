@@ -14,8 +14,8 @@ from database import engine, get_db
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Voyager Backend API",
-    description="REST API for the Voyager personal travel journal.",
+    title="sTripKaka Backend API",
+    description="REST API for the sTripKaka travel journal.",
     version="1.2.0",
 )
 
@@ -36,7 +36,7 @@ app.add_middleware(
 
 @app.get("/", tags=["Health"])
 def read_root():
-    return {"status": "Voyager API running", "version": "1.2.0"}
+    return {"status": "sTripKaka API running", "version": "1.2.0"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { Globe, Plane, Map as MapIcon, Compass } from 'lucide-react';
 import InteractiveMap from './InteractiveMap';
+import { apiUrl } from '../lib/api';
 
 interface DashboardProps {
   setActiveTab: (tab: string) => void;
@@ -142,7 +143,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
   const [dbChapters, setDbChapters] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/locations?limit=3')
+    fetch(apiUrl('/locations?limit=3'))
       .then(res => res.json())
       .then(data => {
         if (data && data.length > 0) setDbChapters(data);
@@ -165,7 +166,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
         <div className="space-y-6">
           <span className="text-primary font-tech tracking-[0.2em] font-bold text-sm">CHAPTER IV</span>
           <h1 className="font-headline text-5xl md:text-7xl font-bold tracking-tighter leading-tight text-on-surface">
-            The Ngan's<br /><Typewriter words={["Voyager", "Explorer", "Nomad", "Observer"]} />
+            The Ngan's<br /><Typewriter words={["sTripKaka", "Explorer", "Nomad", "Observer"]} />
           </h1>
           <p className="text-secondary text-lg md:text-xl max-w-lg leading-relaxed font-body">
             Chronicling silent explorations through nocturnal cities, forgotten trails, and the quiet spaces between coordinates.

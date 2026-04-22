@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, Star, ArrowRight, Play, Loader2 } from 'lucide-react';
 import { MagneticCard } from './Dashboard';
+import { API_BASE_URL } from '../lib/api';
 
-const API = 'http://localhost:8000/api';
+const API = API_BASE_URL;
 
 interface Location {
   id: string;

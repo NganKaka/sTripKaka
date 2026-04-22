@@ -1,27 +1,103 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# sTripKaka
 
-# Run and deploy your AI Studio app
+Travel journal app with a React frontend and a FastAPI backend for managing destination content.
 
-This contains everything you need to run your app locally.
+## Stack
 
-View your app in AI Studio: https://ai.studio/apps/d7dabcb0-d9ed-4541-8232-a3ad7e269419
+- Frontend: React 19, TypeScript, Vite, Tailwind CSS, Framer Motion
+- Backend: FastAPI, SQLAlchemy, PostgreSQL
+- Assets: static images and videos served from `public/`
 
-## Run Locally
+## Project Structure
 
-**Prerequisites:**  Node.js
+```text
+sTripKaka/
+|- src/        # frontend app
+|- public/     # static media
+|- backend/    # FastAPI API + database layer
+```
 
+## Prerequisites
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- Node.js 18+
+- Python 3.11+
+- PostgreSQL running locally or a reachable PostgreSQL instance
 
-Run:
-0. Turn on env: `source venv/Scripts/activate`
+## Environment
 
-1. Turn on proxy: `python gemini_proxy.py`
-2. Run backend: `uvicorn main:app --reload`
-3. Run frontend: `npm run dev`
+Frontend reads `VITE_API_BASE_URL`. If it is not set, the app defaults to:
+
+```env
+http://localhost:8000/api
+```
+
+Backend uses `DATABASE_URL`. If it is not set, it falls back to:
+
+```env
+postgresql://postgres:postgres@localhost:5432/stripkaka_db
+```
+
+You can create a project-level `.env` with:
+
+```env
+VITE_API_BASE_URL=http://localhost:8000/api
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/stripkaka_db
+```
+
+## Run Frontend
+
+From the project root:
+
+```powershell
+npm install
+npm run dev
+```
+
+Frontend runs on `http://localhost:3000`.
+
+## Run Backend
+
+From `backend/`:
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+API docs will be available at `http://localhost:8000/docs`.
+
+## Seed Sample Data
+
+From `backend/` with the virtual environment active:
+
+```powershell
+python seed.py
+```
+
+This seeds the sample destinations currently used by the UI, such as `phu_quoc` and `hue`.
+
+## Deploy Notes
+
+- Vercel is a good fit for the frontend.
+- The FastAPI backend should be deployed separately to a Python host such as Render or Railway.
+- The database should be deployed separately to a managed PostgreSQL provider such as Neon, Supabase, Render Postgres, or Railway Postgres.
+- After backend deploy, set Vercel env `VITE_API_BASE_URL` to your backend URL, for example `https://your-backend.example.com/api`.
+
+## Useful Commands
+
+From the project root:
+
+```powershell
+npm run dev
+npm run build
+npm run lint
+```
+
+From `backend/`:
+
+```powershell
+python check_db.py
+python seed.py
+```

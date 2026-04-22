@@ -1,6 +1,7 @@
 import { motion, useScroll, useSpring, useInView } from 'framer-motion';
 import { Ship, Sun, Camera, Star, ArrowRight, Quote, ArrowLeft } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { apiUrl } from '../lib/api';
 
 interface TripDetailProps {
   setActiveTab: (tab: string) => void;
@@ -73,7 +74,7 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
 
   useEffect(() => {
     setLoading(true);
-    fetch(`http://localhost:8000/api/locations/${locationId}`)
+    fetch(apiUrl(`/locations/${locationId}`))
       .then(res => { if (!res.ok) throw new Error('Not found'); return res.json(); })
       .then(data => {
         setTripData({
