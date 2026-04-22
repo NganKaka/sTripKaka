@@ -1,9 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import mapboxgl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { apiUrl } from '../lib/api';
-
-mapboxgl.accessToken = 'pk.dummy_token_not_real';
 
 interface LocationData {
   name: string;
