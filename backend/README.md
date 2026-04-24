@@ -30,7 +30,15 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/stripkaka_db
 ## Run the Backend
 
 ```powershell
+alembic upgrade head
 uvicorn main:app --reload --port 8000
+```
+
+## Migration Workflow
+
+```powershell
+alembic revision --autogenerate -m "describe change"
+alembic upgrade head
 ```
 
 ## Seed the Database

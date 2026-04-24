@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
+from datetime import datetime
 
 
 class GalleryNode(BaseModel):
@@ -49,8 +50,53 @@ class LocationPatch(BaseModel):
 
 
 class LocationOut(LocationBase):
+    average_stars: float = 5.0
+    total_reviews: int = 0
+
     class Config:
         from_attributes = True
+
+
+class ReviewCreate(BaseModel):
+    stars: int = Field(ge=0, le=5)
+    nickname: Optional[str] = 'Guest'
+    comment: str
+
+
+class ReviewOut(BaseModel):
+    id: int
+    location_id: str
+    stars: int
+    nickname: str
+    comment: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LocationReviewsOut(BaseModel):
+    average_stars: float = 5.0
+    total_reviews: int = 0
+    reviews: List[ReviewOut]
+
+
+class NotificationOut(BaseModel):
+    id: int
+    location_id: str
+    review_id: int
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationsOut(BaseModel):
+    unread_count: int = 0
+    notifications: List[NotificationOut]
 
 
 class PaginatedLocations(BaseModel):

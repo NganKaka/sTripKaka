@@ -1,10 +1,31 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, Star, ArrowRight, Play, Loader2 } from 'lucide-react';
+import { Search, X, Star, ArrowRight, Loader2 } from 'lucide-react';
 import { MagneticCard } from './Dashboard';
-import { API_BASE_URL } from '../lib/api';
+import { apiUrl } from '../lib/api';
 
-const API = API_BASE_URL;
+const ARCHIVE_FILTERS = ['ALL', 'CHAPTER I', 'CHAPTER II', 'CHAPTER III'];
+
+const buildArchivesUrl = (skip: number, limit: number, activeFilter: string, searchQuery: string) => {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    skip: String(skip),
+  });
+
+  if (activeFilter !== 'ALL') {
+    params.set('chapter', activeFilter.replace('CHAPTER', 'Chapter').trim());
+  }
+
+  const normalizedSearch = searchQuery.trim();
+  if (normalizedSearch) {
+    params.set('search', normalizedSearch);
+  }
+
+  return apiUrl(`/locations/paginated?${params.toString()}`);
+};
+
+let searchDebounceId: number | undefined;
+
 
 interface Location {
   id: string;
@@ -17,7 +38,8 @@ interface Location {
   lat: string;
   lng: string;
   full_description?: string;
-  h?: number; // Visual height for masonry
+  average_stars?: number;
+  total_reviews?: number;
 }
 
 interface ArchivesProps {
@@ -32,29 +54,43 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
   const [hasMore, setHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchItems = async (isLoadMore = false) => {
+  const formatVisitedDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const fetchItems = async (isLoadMore = false, options?: { filter?: string; search?: string }) => {
+    const nextFilter = options?.filter ?? activeFilter;
+    const nextSearch = options?.search ?? searchQuery;
     const limit = isLoadMore ? 10 : 5;
     const skip = isLoadMore ? items.length : 0;
-    
-    if (isLoadMore) setLoadingMore(true);
-    
+
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      const res = await fetch(`${API}/locations/paginated?limit=${limit}&skip=${skip}`);
+      const res = await fetch(buildArchivesUrl(skip, limit, nextFilter, nextSearch));
+      if (!res.ok) throw new Error('Failed to fetch archives');
       const data = await res.json();
-      
-      const newItems = data.items.map((it: any) => ({
-        ...it,
-        h: Math.floor(Math.random() * (450 - 320 + 1)) + 320 // Random height for masonry
-      }));
+      const newItems = Array.isArray(data.items) ? data.items : [];
 
       if (isLoadMore) {
         setItems(prev => [...prev, ...newItems]);
       } else {
         setItems(newItems);
       }
-      setHasMore(data.has_more);
+      setHasMore(Boolean(data.has_more));
     } catch (error) {
-      console.error("Failed to fetch archives:", error);
+      console.error('Failed to fetch archives:', error);
+      if (!isLoadMore) setItems([]);
+      setHasMore(false);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -62,15 +98,15 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
   };
 
   useEffect(() => {
-    fetchItems();
-  }, []);
+    window.clearTimeout(searchDebounceId);
+    searchDebounceId = window.setTimeout(() => {
+      fetchItems(false, { filter: activeFilter, search: searchQuery });
+    }, 350);
 
-  const filtered = items.filter(e => {
-    const matchesFilter = activeFilter === 'ALL' || e.chapter.toUpperCase().includes(activeFilter);
-    const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         e.short_desc.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+    return () => window.clearTimeout(searchDebounceId);
+  }, [searchQuery, activeFilter]);
+
+  const filtered = items;
 
   return (
     <div className="space-y-12">
@@ -85,7 +121,11 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
             type="text" 
             placeholder="Search memories, locations..." 
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setItems([]);
+              setHasMore(false);
+            }}
             className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:border-primary/50 transition-all font-body text-sm"
           />
         </div>
@@ -93,10 +133,14 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
 
       <div className="flex flex-wrap items-center gap-4">
         <span className="font-headline text-[10px] uppercase tracking-widest text-secondary/50">Filters:</span>
-        {["ALL", "CHAPTER I", "CHAPTER II", "CHAPTER III"].map(f => (
+        {ARCHIVE_FILTERS.map(f => (
           <button 
             key={f} 
-            onClick={() => setActiveFilter(f)}
+            onClick={() => {
+              setActiveFilter(f);
+              setItems([]);
+              setHasMore(false);
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-full glass-card transition-all cursor-pointer ${activeFilter === f ? 'bg-primary/20 border-primary text-primary' : 'hover:bg-white/10'}`}
           >
             <span className="text-[10px] font-bold tracking-widest">{f}</span>
@@ -128,11 +172,11 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
                   attractOnProximity
                   className="glass-card rounded-xl overflow-hidden group flex flex-col transition-colors hover:shadow-[0_0_20px_rgba(34,211,238,0.15)] relative cursor-pointer"
                 >
-                  <div style={{ height: e.h }} className="flex flex-col">
+                  <div className="flex flex-col">
                     {/* Scanline Effect */}
                     <div className="absolute top-0 left-0 w-full h-[2px] bg-cyan-400/50 shadow-[0_0_15px_rgba(34,211,238,1)] -translate-y-[10px] group-hover:animate-scan z-50 pointer-events-none opacity-0 group-hover:opacity-100" />
                     
-                    <div className="h-1/2 overflow-hidden relative shrink-0">
+                    <div className="h-64 overflow-hidden relative shrink-0">
                       {/* Coordinates UI overlay */}
                       <div className="absolute top-3 left-3 z-20 text-[8px] font-tech text-cyan-400/80 opacity-0 group-hover:opacity-100 transition-opacity tracking-widest">
                         [LAT: {e.lat}° N]
@@ -157,11 +201,17 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
                         </div>
                       )}
                     </div>
-                    <div className="p-6 flex-1 flex flex-col justify-between -mt-4 relative z-10 bg-gradient-to-t from-background/80 to-transparent">
-                      <div className="space-y-2">
-                        <h2 className="font-headline text-2xl font-bold text-on-surface group-hover:text-cyan-400 transition-colors drop-shadow-sm">{e.name}</h2>
+                    <div className="p-6 flex-1 flex flex-col -mt-4 relative z-10 bg-gradient-to-t from-background/80 to-transparent">
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-start justify-between gap-4">
+                          <h2 className="font-headline text-2xl font-bold text-on-surface group-hover:text-cyan-400 transition-colors drop-shadow-sm">{e.name}</h2>
+                          <div className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-tech tracking-[0.18em] text-primary">
+                            ★ {(typeof e.average_stars === 'number' ? e.average_stars : 5).toFixed(1)}
+                          </div>
+                        </div>
                         <p className="text-secondary text-sm line-clamp-2 font-body transition-all">{e.short_desc}</p>
-                        
+                        <p className="text-[10px] font-tech tracking-[0.18em] uppercase text-secondary/50">{(e.total_reviews || 0) > 0 ? `${e.total_reviews} reviews` : 'Default rating'}</p>
+
                         {/* Expandable Excerpt */}
                         <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-500 ease-in-out">
                           <div className="overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
@@ -172,9 +222,9 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
                         </div>
                       </div>
                       
-                      <div className="flex justify-between items-center mt-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-tech tracking-widest text-secondary/60 group-hover:text-cyan-100 transition-colors">{e.visited_date}</span>
+                      <div className="flex justify-between items-end mt-4 gap-3">
+                        <div className="flex items-center gap-3 flex-wrap min-w-0">
+                          <span className="text-[10px] font-tech tracking-widest text-secondary/60 group-hover:text-cyan-100 transition-colors">{formatVisitedDate(e.visited_date)}</span>
                           {/* Waveform visualizer */}
                           <div className="flex items-end gap-[2px] h-3 opacity-0 group-hover:opacity-100 transition-opacity">
                             {[1, 2, 3, 4, 5].map(bar => (
@@ -202,7 +252,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
       {hasMore && (
         <div className="flex justify-center pt-8">
           <button 
-            onClick={() => fetchItems(true)}
+            onClick={() => fetchItems(true, { filter: activeFilter, search: searchQuery })}
             disabled={loadingMore}
             className="px-8 py-3 rounded-full glass-card text-[10px] font-bold tracking-widest text-secondary uppercase hover:text-primary transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >

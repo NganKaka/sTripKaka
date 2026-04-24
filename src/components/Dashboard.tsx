@@ -268,12 +268,12 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
       {/* Hero */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center min-h-[500px]">
         <div className="space-y-6">
-          <span className="text-primary font-tech tracking-[0.2em] font-bold text-sm">CHAPTER IV</span>
+          <span className="text-primary font-tech tracking-[0.2em] font-bold text-sm">ALL CHAPTERS</span>
           <h1 className="font-headline text-5xl md:text-7xl font-bold tracking-tighter leading-tight text-on-surface">
             The Ngan's<br /><Typewriter words={["sTripKaka", "Explorer", "Nomad", "Observer"]} />
           </h1>
           <p className="text-secondary text-lg md:text-xl max-w-lg leading-relaxed font-body">
-            Chronicling silent explorations through nocturnal cities, forgotten trails, and the quiet spaces between coordinates.
+            Người ta đi xa không phải để tìm nơi trốn chạy, mà để tìm một thế giới quan rộng lớn hơn.
           </p>
           <div className="flex gap-4 mt-8">
             <button 
@@ -337,11 +337,10 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
           <div className="space-y-6 z-10">
             <h2 className="font-headline text-4xl font-bold tracking-tight text-on-surface">Cartography of Memories</h2>
             <p className="text-secondary text-lg max-w-md font-body leading-relaxed">
-              A visual representation of the paths taken. Each point represents a documented memory, a silent observation recorded in the digital log.
-            </p>
+Một sự tái hiện trực quan về những hành trình đã qua. Mỗi điểm nhìn chính là một mảnh ký ức được lưu dấu, một quan sát lặng lẽ được ghi lại trong nhật ký kỹ thuật số.            </p>
             <div className="pt-8">
               <span className="text-primary font-bold tracking-widest uppercase text-[10px] mb-2 block">Current Focus</span>
-              <h3 className="font-headline text-3xl font-bold text-on-surface drop-shadow-[0_0_15px_rgba(233,195,73,0.4)]">Southeast Asia Trails</h3>
+              <h3 className="font-headline text-3xl font-bold text-on-surface drop-shadow-[0_0_15px_rgba(233,195,73,0.4)]">VIETNAM</h3>
             </div>
           </div>
 
@@ -400,10 +399,11 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {displayList.slice(0, 3).map((c, i) => (
-            <MagneticCard
+            <motion.div
               key={`${c.id}-${i}`}
               onClick={() => navigate(`/mission-detail/${c.id}`)}
-              attractOnProximity
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.99 }}
               className="group relative rounded-2xl overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/[0.08] hover:border-primary/40 hover:shadow-[0_0_50px_rgba(233,195,73,0.15)] transition-all duration-500 cursor-pointer h-full"
             >
               <div className="absolute top-0 left-0 w-full h-[2px] bg-primary/50 shadow-[0_0_15px_rgba(233,195,73,1)] -translate-y-[10px] group-hover:animate-scan z-50 pointer-events-none opacity-0 group-hover:opacity-100" />
@@ -440,10 +440,10 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
                     <span className="text-[10px] font-tech text-primary/60">{c.id.slice(0, 12)}...</span>
                   </div>
                   
-                  <div className="flex items-end gap-[3px] h-4">
+                  <div className="flex items-end gap-[3px] h-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     {[1, 2, 3, 4, 5, 6].map(bar => (
-                      <motion.div 
-                        key={bar} 
+                      <motion.div
+                        key={bar}
                         animate={{ height: ["2px", "14px", "6px", "10px", "2px"] }}
                         transition={{ duration: 1.5, repeat: Infinity, delay: bar * 0.1, ease: "easeInOut" }}
                         className="w-[1.5px] bg-primary/60 rounded-full"
@@ -452,7 +452,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
                   </div>
                 </div>
               </div>
-            </MagneticCard>
+            </motion.div>
           ))}
         </div>
       </motion.section>

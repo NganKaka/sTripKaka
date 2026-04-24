@@ -1,6 +1,6 @@
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { Mountain, ArrowLeft } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Mountain, ArrowLeft, Star } from 'lucide-react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { apiUrl } from '../lib/api';
 
 type GalleryNode = {
@@ -9,12 +9,41 @@ type GalleryNode = {
   images: [string, string, string];
 };
 
+interface GalleryViewProps {
+  setActiveTab: (tab: string) => void;
+  locationId?: string;
+}
+
+interface ReviewItem {
+  id: number;
+  location_id: string;
+  stars: number;
+  nickname: string;
+  comment: string;
+  created_at: string;
+}
+
+interface ReviewsResponse {
+  average_stars: number;
+  total_reviews: number;
+  reviews: ReviewItem[];
+}
+
+interface LocationResponse {
+  name?: string;
+  short_desc?: string;
+  gallery_nodes?: any[];
+  gallery_images?: string[];
+  img?: string;
+}
+
 const normalizeNodeImages = (images: string[] = []): [string, string, string] => [images[0] || '', images[1] || '', images[2] || ''];
 const normalizeNode = (node: any): GalleryNode => ({
   title: node?.title || '',
   description: node?.description || '',
   images: normalizeNodeImages(node?.images || []),
 });
+
 const nodesFromLegacyImages = (images: string[] = []): GalleryNode[] => {
   if (!images.length) return [];
   const nodes: GalleryNode[] = [];
@@ -28,12 +57,6 @@ const nodesFromLegacyImages = (images: string[] = []): GalleryNode[] => {
   return nodes;
 };
 
-interface GalleryViewProps {
-  setActiveTab: (tab: string) => void;
-  locationId?: string;
-}
-
-// Static text content per location
 const LOCATION_CONTENT: Record<string, {
   heroTitle: string; heroSub: string; heroDesc: string;
   sightsTitle: string; sightsDesc: string;
@@ -57,7 +80,7 @@ const LOCATION_CONTENT: Record<string, {
   },
 };
 
-const DEFAULT_CONTENT = LOCATION_CONTENT['phu_quoc'];
+const DEFAULT_CONTENT = LOCATION_CONTENT.phu_quoc;
 
 function CircuitNode({ icon: Icon }: { icon: any }) {
   return (
@@ -66,8 +89,8 @@ function CircuitNode({ icon: Icon }: { icon: any }) {
       whileInView="visible"
       viewport={{ once: false, margin: '-20%' }}
       variants={{
-        hidden:  { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)', scale: 0.8, boxShadow: 'none' },
-        visible: { borderColor: 'rgba(34,211,238,0.8)',  color: 'rgba(34,211,238,1)',   scale: 1,   boxShadow: '0 0 20px rgba(34,211,238,0.5)' },
+        hidden: { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)', scale: 0.8, boxShadow: 'none' },
+        visible: { borderColor: 'rgba(34,211,238,0.8)', color: 'rgba(34,211,238,1)', scale: 1, boxShadow: '0 0 20px rgba(34,211,238,0.5)' },
       }}
       transition={{ duration: 0.4 }}
       className="w-10 h-10 md:w-12 md:h-12 border-[2px] bg-background flex items-center justify-center relative z-20 rotate-45 shrink-0"
@@ -83,24 +106,70 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
 
   const [nodes, setNodes] = useState<GalleryNode[]>([]);
   const [heroImg, setHeroImg] = useState('');
+  const [heroHeadline, setHeroHeadline] = useState('Golden Hour Escape');
+  const [heroLocationName, setHeroLocationName] = useState('Phu Quoc');
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [activeImageAlt, setActiveImageAlt] = useState('');
 
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [averageStars, setAverageStars] = useState(5);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [reviewLoading, setReviewLoading] = useState(true);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+  const [stars, setStars] = useState(5);
+  const [hoverStars, setHoverStars] = useState<number | null>(null);
+  const [nickname, setNickname] = useState('Guest');
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const reviewSectionRef = useRef<HTMLElement | null>(null);
+
   const content = LOCATION_CONTENT[locationId] || DEFAULT_CONTENT;
+  const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 3);
+
+  const fetchReviews = () => {
+    setReviewLoading(true);
+    fetch(apiUrl(`/locations/${locationId}/reviews`))
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch reviews');
+        return res.json();
+      })
+      .then((data: ReviewsResponse) => {
+        setReviews(Array.isArray(data.reviews) ? data.reviews : []);
+        setAverageStars(typeof data.average_stars === 'number' ? data.average_stars : 5);
+        setTotalReviews(typeof data.total_reviews === 'number' ? data.total_reviews : 0);
+      })
+      .catch(() => {
+        setReviews([]);
+        setAverageStars(5);
+        setTotalReviews(0);
+      })
+      .finally(() => setReviewLoading(false));
+  };
 
   useEffect(() => {
     setLoading(true);
     setActiveImage(null);
     setActiveImageAlt('');
+    setShowAllReviews(false);
+    setStars(5);
+    setNickname('Guest');
+    setComment('');
+    setReviewError('');
+
     fetch(apiUrl(`/locations/${locationId}`))
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => {
+      .then((data: LocationResponse) => {
         const backendNodes: GalleryNode[] = Array.isArray(data.gallery_nodes) && data.gallery_nodes.length
           ? data.gallery_nodes.map(normalizeNode)
           : nodesFromLegacyImages(data.gallery_images || []);
         setNodes(backendNodes);
         setHeroImg(backendNodes[0]?.images[0] || data.img || '');
+        const subtitle = (data.short_desc || '').trim();
+        const locationName = (data.name || locationId.replace(/_/g, ' ')).trim();
+        setHeroHeadline(subtitle || 'Golden Hour Escape');
+        setHeroLocationName(locationName || 'Unknown Destination');
         setLoading(false);
       })
       .catch(() => {
@@ -118,11 +187,15 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
             '/hue/hue_landscape_7.jpg',
           ],
         };
-        const fallbackNodes = nodesFromLegacyImages(fallbacks[locationId] || fallbacks['phu_quoc']);
+        const fallbackNodes = nodesFromLegacyImages(fallbacks[locationId] || fallbacks.phu_quoc);
         setNodes(fallbackNodes);
         setHeroImg(fallbackNodes[0]?.images[0] || '');
+        setHeroHeadline('Golden Hour Escape');
+        setHeroLocationName(locationId.replace(/_/g, ' '));
         setLoading(false);
       });
+
+    fetchReviews();
   }, [locationId]);
 
   useEffect(() => {
@@ -144,6 +217,28 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
     };
   }, [activeImage]);
 
+  useEffect(() => {
+    const rawTarget = localStorage.getItem('reviewTarget');
+    if (!rawTarget) return;
+    const [targetLocationId, targetReviewId] = rawTarget.split(':');
+    if (targetLocationId !== locationId) return;
+
+    const scrollToReview = () => {
+      const reviewElement = document.getElementById(`review-item-${targetReviewId}`);
+      if (reviewElement) {
+        setShowAllReviews(true);
+        reviewElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        reviewElement.classList.add('ring-2', 'ring-primary/70');
+        window.setTimeout(() => reviewElement.classList.remove('ring-2', 'ring-primary/70'), 2200);
+      } else if (reviewSectionRef.current) {
+        reviewSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      localStorage.removeItem('reviewTarget');
+    };
+
+    window.setTimeout(scrollToReview, 250);
+  }, [locationId, reviews]);
+
   const openImageModal = (src: string, alt: string) => {
     setActiveImage(src);
     setActiveImageAlt(alt);
@@ -153,6 +248,97 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
     setActiveImage(null);
     setActiveImageAlt('');
   };
+
+  const handleSelectStar = (value: number) => {
+    if (value === 1 && stars === 1) {
+      setStars(0);
+      return;
+    }
+    setStars(value);
+  };
+
+  const clearRating = () => setStars(0);
+
+  const handleSubmitReview = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedComment = comment.trim();
+    if (!trimmedComment) {
+      setReviewError('Comment is required.');
+      return;
+    }
+
+    setSubmitting(true);
+    setReviewError('');
+
+    fetch(apiUrl(`/locations/${locationId}/reviews`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stars,
+        nickname: nickname.trim() || 'Guest',
+        comment: trimmedComment,
+      }),
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.detail || 'Failed to submit review');
+        }
+        return res.json();
+      })
+      .then((data: ReviewsResponse) => {
+        setReviews(Array.isArray(data.reviews) ? data.reviews : []);
+        setAverageStars(typeof data.average_stars === 'number' ? data.average_stars : 5);
+        setTotalReviews(typeof data.total_reviews === 'number' ? data.total_reviews : 0);
+        setComment('');
+        setNickname('Guest');
+        setStars(5);
+        setShowAllReviews(false);
+      })
+      .catch(err => setReviewError(err.message || 'Submit failed'))
+      .finally(() => setSubmitting(false));
+  };
+
+  const renderStars = (value: number, size = 14) =>
+    Array.from({ length: 5 }, (_, index) => {
+      const starValue = index + 1;
+      const active = starValue <= value;
+      return (
+        <Star
+          key={`review-star-${value}-${size}-${starValue}`}
+          size={size}
+          className={active ? 'text-primary fill-primary' : 'text-secondary/40'}
+        />
+      );
+    });
+
+  const renderEditableStars = () =>
+    Array.from({ length: 5 }, (_, index) => {
+      const value = index + 1;
+      const previewActive = hoverStars !== null && value <= hoverStars;
+      const selectedActive = hoverStars === null && value <= stars;
+      const className = previewActive
+        ? 'text-primary/70 fill-primary/20 drop-shadow-[0_0_10px_rgba(233,195,73,0.35)] scale-105'
+        : selectedActive
+          ? 'text-primary fill-primary drop-shadow-[0_0_10px_rgba(233,195,73,0.8)]'
+          : 'text-secondary/40';
+
+      return (
+        <button
+          key={`form-star-${value}`}
+          type="button"
+          onClick={() => handleSelectStar(value)}
+          onMouseEnter={() => setHoverStars(value)}
+          onMouseLeave={() => setHoverStars(null)}
+          className="p-1 cursor-pointer transition-transform duration-200 hover:-translate-y-0.5"
+          aria-label={`Rate ${value} star${value > 1 ? 's' : ''}`}
+        >
+          <Star size={20} className={`${className} transition-all duration-200`} />
+        </button>
+      );
+    });
+
+  const resetStarPreview = () => setHoverStars(null);
 
   const renderGalleryImage = (src: string, alt: string, heightClass: string) => (
     <motion.button
@@ -170,16 +356,25 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
     </motion.button>
   );
 
+  const formatReviewDate = (iso: string) => {
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return '';
+    return dt.toLocaleDateString('en-GB');
+  };
+
+  const averageDisplay = Number.isFinite(averageStars) ? averageStars.toFixed(1) : '5.0';
+  const reviewSummaryLabel = totalReviews === 1 ? '1 review' : `${totalReviews} reviews`;
+  const isReviewListExpandable = reviews.length > 3;
+  const isSubmitDisabled = submitting || !comment.trim();
+
   return (
     <div className="space-y-16 relative w-full">
-      {/* Master Vertical Circuit Trace */}
       <div className="absolute left-6 md:left-12 top-[600px] bottom-0 w-[2px] bg-white/5 z-0" />
       <motion.div
         style={{ height: traceHeight }}
         className="absolute left-6 md:left-12 top-[600px] w-[2px] bg-cyan-400 z-0 shadow-[0_0_15px_rgba(34,211,238,1)] origin-top"
       />
 
-      {/* Back Button */}
       <div className="flex items-center">
         <button
           onClick={() => setActiveTab(`Destinations:${locationId}`)}
@@ -190,31 +385,24 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
         </button>
       </div>
 
-      {/* Hero Section */}
       <section className="relative rounded-2xl overflow-hidden min-h-[600px] flex items-end pb-16 px-8 md:px-16 glass-card ghost-border ambient-shadow group">
         {heroImg && (
           <img
             src={heroImg}
-            alt={content.heroSub}
+            alt={heroLocationName}
             className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-60 transition-transform duration-700 group-hover:scale-105"
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
         <div className="relative z-10 max-w-3xl">
-          <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            className="font-headline text-primary tracking-[0.05em] uppercase text-sm mb-4 block">
+          <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="font-headline text-primary tracking-[0.05em] uppercase text-sm mb-4 block">
             Expedition Gallery
           </motion.span>
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="font-headline text-5xl md:text-7xl font-extrabold tracking-tight text-on-surface mb-6 leading-tight">
-            {content.heroTitle} <br />
-            <span className="text-primary">{content.heroSub}</span>
+          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="font-headline text-5xl md:text-7xl font-extrabold tracking-tight text-on-surface mb-6 leading-tight">
+            <span className="text-primary">{heroHeadline || `Journey in ${heroLocationName}`}</span>
           </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-lg text-secondary max-w-xl leading-relaxed">
-            {content.heroDesc}
+          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-lg text-secondary max-w-xl leading-relaxed">
+            A curated visual journal of landscapes, light, and quiet moments captured throughout the journey.
           </motion.p>
         </div>
       </section>
@@ -240,10 +428,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
             return (
               <section key={`gallery-node-${index}`} className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24 items-start pl-16 md:pl-28 relative">
                 <div className="absolute left-6 md:left-12 top-6 w-10 md:w-16 h-[2px] bg-white/5 z-0" />
-                <motion.div initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }}
-                  viewport={{ once: false, margin: '-20%' }} transition={{ duration: 0.5, delay: 0.2 }}
-                  className="absolute left-6 md:left-12 top-6 w-10 md:w-16 h-[2px] bg-cyan-400 z-0 shadow-[0_0_10px_rgba(34,211,238,1)] origin-left"
-                />
+                <motion.div initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: false, margin: '-20%' }} transition={{ duration: 0.5, delay: 0.2 }} className="absolute left-6 md:left-12 top-6 w-10 md:w-16 h-[2px] bg-cyan-400 z-0 shadow-[0_0_10px_rgba(34,211,238,1)] origin-left" />
                 <div className={`${textColumnClass} sticky top-32 space-y-6 z-20`}>
                   <div className="flex items-center gap-4 mb-4 -ml-5 md:-ml-8">
                     <CircuitNode icon={Mountain} />
@@ -269,15 +454,101 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
         </>
       )}
 
+      <section ref={reviewSectionRef} className="pl-16 md:pl-28">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+          <div className="lg:col-span-5 space-y-4">
+            <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em] block">Traveler Reviews</span>
+            <h3 className="font-headline text-3xl font-bold tracking-tight text-on-surface">Rate this expedition</h3>
+            <div className="glass-card rounded-xl p-5 ghost-border space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">{renderStars(Math.round(averageStars), 18)}</div>
+                <span className="font-headline text-xl text-primary">{averageDisplay}</span>
+              </div>
+              <p className="text-secondary/70 text-sm">{reviewSummaryLabel}</p>
+            </div>
+          </div>
+
+          <div className="lg:col-span-7 space-y-6">
+            <form onSubmit={handleSubmitReview} className="glass-card rounded-xl p-6 ghost-border space-y-5">
+              <div className="space-y-2">
+                <label className="text-secondary text-xs font-tech uppercase tracking-[0.2em] block">Your Rating</label>
+                <div className="flex items-center gap-1">{renderEditableStars()}</div>
+                <button type="button" onClick={clearRating} className="text-[10px] text-secondary/70 hover:text-primary font-tech uppercase tracking-[0.2em] transition-colors cursor-pointer">
+                  Clear rating
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-secondary text-xs font-tech uppercase tracking-[0.2em] block">Nickname</label>
+                <input
+                  value={nickname}
+                  onChange={(event) => setNickname(event.target.value)}
+                  placeholder="Guest"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-colors"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-secondary text-xs font-tech uppercase tracking-[0.2em] block">Comment</label>
+                <textarea
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  rows={4}
+                  placeholder="Share your thoughts about this location..."
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-colors resize-none"
+                />
+              </div>
+
+              {reviewError && <p className="text-rose-300 text-sm">{reviewError}</p>}
+
+              <button
+                type="submit"
+                disabled={isSubmitDisabled}
+                className="px-6 py-3 rounded-xl border border-primary/40 text-primary font-headline text-xs uppercase tracking-[0.15em] hover:bg-primary/10 hover:border-primary transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? 'Submitting...' : 'Send review'}
+              </button>
+            </form>
+
+            {reviewLoading ? (
+              <div className="glass-card rounded-xl p-6 ghost-border text-center">
+                <p className="text-secondary font-tech text-xs tracking-widest uppercase">Loading reviews...</p>
+              </div>
+            ) : reviews.length === 0 ? (
+              <div className="glass-card rounded-xl p-6 ghost-border text-center">
+                <p className="text-secondary/70 font-tech text-xs tracking-widest uppercase">No reviews yet</p>
+                <p className="text-secondary/60 text-sm mt-2">Be the first to share your impression.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {visibleReviews.map(review => (
+                  <div id={`review-item-${review.id}`} key={`review-${review.id}`} className="glass-card rounded-xl p-5 ghost-border space-y-3 transition-all duration-300">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <span className="font-headline text-sm text-on-surface">{review.nickname || 'Guest'}</span>
+                        <div className="flex items-center gap-1">{renderStars(review.stars)}</div>
+                      </div>
+                      <span className="text-secondary/60 text-[11px] font-tech tracking-wider">{formatReviewDate(review.created_at)}</span>
+                    </div>
+                    <p className="text-secondary/90 text-sm leading-relaxed">{review.comment}</p>
+                  </div>
+                ))}
+                {isReviewListExpandable && (
+                  <div className="flex justify-center pt-2">
+                    <button type="button" onClick={() => setShowAllReviews(prev => !prev)} className="text-primary text-xs font-tech tracking-[0.2em] uppercase hover:text-cyan-300 transition-colors cursor-pointer">
+                      {showAllReviews ? 'Show less' : 'View all'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       <AnimatePresence>
         {activeImage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-8"
-            onClick={closeImageModal}
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-8" onClick={closeImageModal}>
             <div className="absolute inset-0 bg-background/65 backdrop-blur-md" />
             <motion.div
               initial={{ opacity: 0, scale: 0.92, y: 20 }}
@@ -285,7 +556,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
               exit={{ opacity: 0, scale: 0.94, y: 16 }}
               transition={{ duration: 0.24, ease: 'easeOut' }}
               className="relative z-10 w-full max-w-5xl rounded-3xl border border-white/10 bg-surface/80 p-3 md:p-4 shadow-[0_25px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
-              onClick={event => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
             >
               <button
                 type="button"
@@ -296,11 +567,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
                 <ArrowLeft size={18} className="rotate-45" />
               </button>
               <div className="overflow-hidden rounded-[1.25rem]">
-                <img
-                  src={activeImage}
-                  alt={activeImageAlt}
-                  className="max-h-[80vh] w-full object-contain bg-black/20"
-                />
+                <img src={activeImage} alt={activeImageAlt} className="max-h-[80vh] w-full object-contain bg-black/20" />
               </div>
             </motion.div>
           </motion.div>

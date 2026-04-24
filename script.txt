@@ -1,0 +1,7 @@
+1. Sửa model DB (nếu có).
+  2. Tạo migration:
+  cd backend
+  alembic revision --autogenerate -m "your change"
+  3. Commit cả code + file migration.
+  4. Push GitHub.
+  5. Render tự deploy backend + tự apply migration vào DB hiện tại.

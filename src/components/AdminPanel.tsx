@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus, Trash2, Edit3, Save, X, Image, MapPin, ChevronDown,
   Check, AlertCircle, Loader2, Globe, FileText, Film, Star, Calendar,
@@ -156,6 +157,21 @@ const EMPTY_FORM = {
 };
 type Location = typeof EMPTY_FORM;
 
+type ReviewItem = {
+  id: number;
+  location_id: string;
+  stars: number;
+  nickname: string;
+  comment: string;
+  created_at: string;
+};
+
+type ReviewsResponse = {
+  average_stars: number;
+  total_reviews: number;
+  reviews: ReviewItem[];
+};
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 function Field({ label, icon: Icon, children }: { label: string; icon: any; children: React.ReactNode }) {
   return (
@@ -245,30 +261,19 @@ function toRoman(num: number): string {
   return res || 'I';
 }
 
-function ChapterSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ChapterSelector({
+  value,
+  onChange,
+  takenChapters,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  takenChapters: string[];
+}) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState(value.replace('Chapter ', ''));
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setQuery(value.replace('Chapter ', ''));
-  }, [value]);
-
-  const select = (num: number) => {
-    const v = `Chapter ${toRoman(num)}`;
-    onChange(v);
-    setOpen(false);
-  };
-
-  const handleInput = (val: string) => {
-    setQuery(val);
-    const n = parseInt(val);
-    if (!isNaN(n) && n > 0 && n <= 100) {
-      onChange(`Chapter ${toRoman(n)}`);
-    } else {
-      onChange(val.startsWith('Chapter') ? val : `Chapter ${val}`);
-    }
-  };
+  const options = CHAPTERS.filter(chapter => chapter === value || !takenChapters.includes(chapter));
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -278,19 +283,14 @@ function ChapterSelector({ value, onChange }: { value: string; onChange: (v: str
 
   return (
     <div ref={ref} className="relative z-10">
-      <div className="relative group">
-        <input
-          className={inputCls + " pl-10 pr-10 font-tech font-bold text-primary"}
-          value={query}
-          onChange={e => handleInput(e.target.value)}
-          onFocus={() => setOpen(true)}
-          placeholder="5"
-        />
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-[9px] font-tech uppercase tracking-widest text-primary/70">
-          CH.
-        </div>
-        <ChevronDown size={14} className={`absolute right-3 top-1/2 -translate-y-1/2 text-secondary/40 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-on-surface hover:border-primary/40 focus:outline-none focus:border-primary/50 transition-all cursor-pointer group"
+      >
+        <span className="font-tech font-bold text-primary">{value}</span>
+        <ChevronDown size={14} className={`text-secondary/40 group-hover:text-primary transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
 
       <AnimatePresence>
         {open && (
@@ -300,21 +300,23 @@ function ChapterSelector({ value, onChange }: { value: string; onChange: (v: str
             style={{ background: 'rgba(15, 23, 42, 0.98)', backdropFilter: 'blur(20px)' }}
           >
             <div className="max-h-[220px] overflow-y-auto custom-scrollbar">
-              {Array.from({ length: 30 }, (_, i) => i + 1).map(n => {
-                const label = `Chapter ${toRoman(n)}`;
-                const isSelected = value === label;
+              {options.map(chapter => {
+                const isSelected = value === chapter;
                 return (
                   <li
-                    key={n}
-                    onMouseDown={() => select(n)}
+                    key={chapter}
+                    onMouseDown={() => { onChange(chapter); setOpen(false); }}
                     className={`px-4 py-2 text-sm cursor-pointer transition-all hover:bg-primary/10 font-body flex items-center justify-between
                       ${isSelected ? 'bg-primary/5 text-primary' : 'text-on-surface/60 hover:text-on-surface'}`}
                   >
-                    <span>{label}</span>
-                    <span className="text-[10px] font-tech opacity-30">NO.{n}</span>
+                    <span>{chapter}</span>
+                    {isSelected && <Check size={14} className="text-primary" />}
                   </li>
                 );
               })}
+              {options.length === 0 && (
+                <li className="px-4 py-3 text-xs text-secondary/50 font-tech uppercase tracking-widest">No chapter available</li>
+              )}
             </div>
           </motion.ul>
         )}
@@ -708,6 +710,7 @@ function Toast({ msg, type }: { msg: string; type: 'success' | 'error' }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function AdminPanel() {
+  const navigate = useNavigate();
   const [locations, setLocations] = useState<Location[]>([]);
   const [form, setForm] = useState<Location>({ ...EMPTY_FORM, gallery_nodes: createDefaultNodes() });
   const [editing, setEditing] = useState<string | null>(null);
@@ -720,8 +723,86 @@ export default function AdminPanel() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<'list' | 'form'>('list');
+  const [selectedLocationForReviews, setSelectedLocationForReviews] = useState<string | null>(null);
+  const [reviewsByLocation, setReviewsByLocation] = useState<Record<string, ReviewItem[]>>({});
+  const [reviewsLoadingByLocation, setReviewsLoadingByLocation] = useState<Record<string, boolean>>({});
   const uploadCounterRef = useRef(1);
   const getNextIndex = useCallback(() => uploadCounterRef.current++, []);
+
+  const selectedLocation = useMemo(
+    () => locations.find(loc => loc.id === selectedLocationForReviews) || null,
+    [locations, selectedLocationForReviews]
+  );
+
+  const selectedReviews = useMemo(
+    () => (selectedLocationForReviews ? reviewsByLocation[selectedLocationForReviews] || [] : []),
+    [reviewsByLocation, selectedLocationForReviews]
+  );
+
+  const selectedReviewsLoading = selectedLocationForReviews ? !!reviewsLoadingByLocation[selectedLocationForReviews] : false;
+
+  const formatReviewDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const fetchReviewsForLocation = async (locationId: string) => {
+    setReviewsLoadingByLocation(prev => ({ ...prev, [locationId]: true }));
+    try {
+      const res = await fetch(`${API}/locations/${locationId}/reviews`);
+      if (!res.ok) throw new Error('Failed to fetch reviews');
+      const data: ReviewsResponse = await res.json();
+      setReviewsByLocation(prev => ({ ...prev, [locationId]: Array.isArray(data.reviews) ? data.reviews : [] }));
+    } catch {
+      setReviewsByLocation(prev => ({ ...prev, [locationId]: [] }));
+    } finally {
+      setReviewsLoadingByLocation(prev => ({ ...prev, [locationId]: false }));
+    }
+  };
+
+  const handleSelectLocationForReviews = (locationId: string) => {
+    setSelectedLocationForReviews(locationId);
+    fetchReviewsForLocation(locationId);
+  };
+
+  const handleDeleteReview = async (locationId: string, reviewId: number) => {
+    const confirmed = window.confirm('Delete this comment?');
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`${API}/locations/${locationId}/reviews/${reviewId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      const data: ReviewsResponse = await res.json();
+      setReviewsByLocation(prev => ({ ...prev, [locationId]: Array.isArray(data.reviews) ? data.reviews : [] }));
+      showToast('Comment deleted.', 'success');
+      fetchLocations();
+    } catch {
+      showToast('Delete comment failed.', 'error');
+    }
+  };
+
+  const handleDeleteAllReviewsForLocation = async (locationId: string) => {
+    const confirmed = window.confirm('Delete all comments for this location?');
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`${API}/locations/${locationId}/reviews`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete all failed');
+      const data: ReviewsResponse = await res.json();
+      setReviewsByLocation(prev => ({ ...prev, [locationId]: Array.isArray(data.reviews) ? data.reviews : [] }));
+      showToast('All comments deleted for this location.', 'success');
+      fetchLocations();
+    } catch {
+      showToast('Delete all comments failed.', 'error');
+    }
+  };
+
+  const handleOpenReviewFromAdmin = (locationId: string, reviewId: number) => {
+    localStorage.setItem('reviewTarget', `${locationId}:${reviewId}`);
+    navigate(`/gallery/${locationId}`);
+  };
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
@@ -770,10 +851,31 @@ export default function AdminPanel() {
     }));
   };
 
+  const takenChapters = useMemo(
+    () => locations.filter(loc => loc.id !== editing).map(loc => loc.chapter),
+    [locations, editing]
+  );
+
+  const isChapterTaken = useCallback((chapter: string) => {
+    return takenChapters.includes(chapter);
+  }, [takenChapters]);
+
+  const handleChapterChange = (chapter: string) => {
+    if (isChapterTaken(chapter)) {
+      showToast(`${chapter} is already used by another location.`, 'error');
+      return;
+    }
+    setForm(f => ({ ...f, chapter }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.short_desc || !form.img) {
       showToast('Name, short description and thumbnail are required.', 'error');
+      return;
+    }
+    if (isChapterTaken(form.chapter)) {
+      showToast(`${form.chapter} is already used by another location.`, 'error');
       return;
     }
     setLoading(true);
@@ -960,47 +1062,116 @@ export default function AdminPanel() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {locations.map(loc => (
-                  <motion.div key={loc.id}
-                    layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                    className="glass-card rounded-xl overflow-hidden ghost-border group hover:shadow-[0_0_30px_rgba(233,195,73,0.08)] transition-all">
-                    <div className="relative h-40 overflow-hidden">
-                      <img src={loc.img} alt={loc.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        onError={e => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x200?text=No+Image'; }} />
-                      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
-                      <div className="absolute top-3 right-3">
-                        <span className={`text-[9px] font-tech uppercase tracking-wider px-2 py-1 rounded-full font-bold
-                          ${loc.highlight_type === 'highlight' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
-                            : loc.highlight_type === 'primary' ? 'bg-primary/20 text-primary border border-primary/30'
-                            : 'bg-white/10 text-secondary border border-white/20'}`}>
-                          {loc.highlight_type}
-                        </span>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {locations.map(loc => (
+                    <motion.div key={loc.id}
+                      layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      onClick={() => handleSelectLocationForReviews(loc.id)}
+                      className={`glass-card rounded-xl overflow-hidden ghost-border group hover:shadow-[0_0_30px_rgba(233,195,73,0.08)] transition-all cursor-pointer ${selectedLocationForReviews === loc.id ? 'ring-1 ring-primary/40 border-primary/30' : ''}`}>
+                      <div className="relative h-40 overflow-hidden">
+                        <img src={loc.img} alt={loc.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={e => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x200?text=No+Image'; }} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+                        <div className="absolute top-3 right-3">
+                          <span className={`text-[9px] font-tech uppercase tracking-wider px-2 py-1 rounded-full font-bold
+                            ${loc.highlight_type === 'highlight' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
+                              : loc.highlight_type === 'primary' ? 'bg-primary/20 text-primary border border-primary/30'
+                              : 'bg-white/10 text-secondary border border-white/20'}`}>
+                            {loc.highlight_type}
+                          </span>
+                        </div>
                       </div>
+                      <div className="p-4">
+                        <p className="text-[10px] font-tech text-primary/70 uppercase tracking-widest">{loc.chapter}</p>
+                        <h3 className="font-headline font-bold text-on-surface text-lg leading-tight">{loc.name}</h3>
+                        <p className="text-secondary/60 text-xs mt-0.5">{loc.short_desc}</p>
+                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
+                          <span className="text-[10px] text-secondary/40 font-tech flex items-center gap-1">
+                            <Calendar size={10} /> {loc.visited_date || '—'}
+                          </span>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={(e) => { e.stopPropagation(); handleEdit(loc); }}
+                              className="p-2 rounded-lg bg-white/5 hover:bg-primary/15 hover:text-primary text-secondary/50 transition-all cursor-pointer">
+                              <Edit3 size={14} />
+                            </button>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setDeleteConfirm(loc.id); }}
+                              className="p-2 rounded-lg bg-white/5 hover:bg-red-500/15 hover:text-red-400 text-secondary/50 transition-all cursor-pointer">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                <div className="glass-card rounded-xl p-6 ghost-border space-y-5">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] font-tech text-primary/70 uppercase tracking-widest">Location comments</p>
+                      <h3 className="font-headline font-bold text-on-surface text-xl">
+                        {selectedLocation ? selectedLocation.name : 'Select a location'}
+                      </h3>
+                      <p className="text-secondary/60 text-sm mt-1">
+                        {selectedLocation ? 'Manage comments for the selected location.' : 'Click a location card above to load its comments.'}
+                      </p>
                     </div>
-                    <div className="p-4">
-                      <p className="text-[10px] font-tech text-primary/70 uppercase tracking-widest">{loc.chapter}</p>
-                      <h3 className="font-headline font-bold text-on-surface text-lg leading-tight">{loc.name}</h3>
-                      <p className="text-secondary/60 text-xs mt-0.5">{loc.short_desc}</p>
-                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
-                        <span className="text-[10px] text-secondary/40 font-tech flex items-center gap-1">
-                          <Calendar size={10} /> {loc.visited_date || '—'}
-                        </span>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleEdit(loc)}
-                            className="p-2 rounded-lg bg-white/5 hover:bg-primary/15 hover:text-primary text-secondary/50 transition-all cursor-pointer">
-                            <Edit3 size={14} />
+                    {selectedLocation && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAllReviewsForLocation(selectedLocation.id)}
+                        disabled={selectedReviewsLoading || selectedReviews.length === 0}
+                        className="px-4 py-2.5 rounded-xl border border-red-400/30 text-red-300 hover:bg-red-500/10 transition-all text-xs font-headline font-bold uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        Delete all
+                      </button>
+                    )}
+                  </div>
+
+                  {!selectedLocation ? (
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-10 text-center text-secondary/50 text-sm">
+                      No location selected.
+                    </div>
+                  ) : selectedReviewsLoading ? (
+                    <div className="flex items-center justify-center py-10">
+                      <Loader2 size={24} className="text-primary animate-spin" />
+                    </div>
+                  ) : selectedReviews.length === 0 ? (
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-10 text-center text-secondary/50 text-sm">
+                      This location has no comments yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedReviews.map(review => (
+                        <div key={`admin-review-${review.id}`} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReviewFromAdmin(review.location_id, review.id)}
+                            className="space-y-2 min-w-0 flex-1 text-left cursor-pointer hover:opacity-90 transition-opacity"
+                          >
+                            <div className="flex flex-wrap items-center gap-3">
+                              <span className="font-headline text-on-surface text-sm">{review.nickname || 'Guest'}</span>
+                              <span className="text-[10px] font-tech tracking-widest text-primary uppercase">★ {review.stars}/5</span>
+                              <span className="text-[10px] font-tech tracking-widest text-secondary/40 uppercase">{formatReviewDate(review.created_at)}</span>
+                            </div>
+                            <p className="text-sm text-secondary leading-relaxed break-words">{review.comment}</p>
+                            <span className="inline-block text-[10px] font-tech uppercase tracking-widest text-primary/70 transition-all duration-200 hover:text-cyan-300 hover:tracking-[0.2em] hover:drop-shadow-[0_0_10px_rgba(34,211,238,0.55)]">Open in gallery</span>
                           </button>
-                          <button onClick={() => setDeleteConfirm(loc.id)}
-                            className="p-2 rounded-lg bg-white/5 hover:bg-red-500/15 hover:text-red-400 text-secondary/50 transition-all cursor-pointer">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReview(review.location_id, review.id)}
+                            className="shrink-0 self-start p-2 rounded-lg bg-white/5 hover:bg-red-500/15 hover:text-red-400 text-secondary/50 transition-all cursor-pointer"
+                            aria-label="Delete comment"
+                          >
                             <Trash2 size={14} />
                           </button>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  </motion.div>
-                ))}
+                  )}
+                </div>
               </div>
             )}
           </motion.div>
@@ -1038,7 +1209,8 @@ export default function AdminPanel() {
                   <Field label="Chapter" icon={Star}>
                     <ChapterSelector
                       value={form.chapter}
-                      onChange={v => setForm(f => ({ ...f, chapter: v }))}
+                      onChange={handleChapterChange}
+                      takenChapters={takenChapters}
                     />
                   </Field>
 
