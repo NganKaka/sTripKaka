@@ -416,12 +416,10 @@ function GalleryNodesInput({
   nodes,
   onChange,
   locationId,
-  getNextIndex,
 }: {
   nodes: GalleryNode[];
   onChange: (updater: (nodes: GalleryNode[]) => GalleryNode[]) => void;
   locationId: string;
-  getNextIndex: () => number;
 }) {
   const updateNode = (uid: string, patch: Partial<GalleryNode>) => {
     onChange(currentNodes => currentNodes.map(node => node.uid === uid ? { ...node, ...patch } : node));
@@ -531,7 +529,6 @@ function GalleryNodesInput({
                         value={image}
                         onChange={value => updateNodeImage(node.uid, imageIndex, value)}
                         locationId={locationId}
-                        getNextIndex={getNextIndex}
                       />
                     </Field>
                   </div>
@@ -576,13 +573,11 @@ function SingleFileUpload({
   onChange,
   accept = 'image/*',
   locationId,
-  getNextIndex,
 }: {
   value: string;
   onChange: (url: string) => void;
   accept?: string;
   locationId: string;
-  getNextIndex: () => number;
 }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -593,9 +588,9 @@ function SingleFileUpload({
     setUploading(true);
     try {
       const ext = file.name.split('.').pop()?.toLowerCase() || (isVideo ? 'mp4' : 'jpg');
-      const base = locationId || 'location';
-      const idx = getNextIndex();
-      const newFilename = `${base}_${idx}.${ext}`;
+      const base = (locationId || 'location').replace(/[^a-z0-9_-]/gi, '_');
+      const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const newFilename = `${base}_${uniqueSuffix}.${ext}`;
       const fd = new FormData();
       fd.append('file', new File([file], newFilename, { type: file.type }));
       const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
@@ -739,8 +734,6 @@ export default function AdminPanel() {
   const [selectedLocationForReviews, setSelectedLocationForReviews] = useState<string | null>(null);
   const [reviewsByLocation, setReviewsByLocation] = useState<Record<string, ReviewItem[]>>({});
   const [reviewsLoadingByLocation, setReviewsLoadingByLocation] = useState<Record<string, boolean>>({});
-  const uploadCounterRef = useRef(1);
-  const getNextIndex = useCallback(() => uploadCounterRef.current++, []);
 
   const selectedLocation = useMemo(
     () => locations.find(loc => loc.id === selectedLocationForReviews) || null,
@@ -922,7 +915,6 @@ export default function AdminPanel() {
       setForm({ ...EMPTY_FORM, gallery_nodes: createDefaultNodes() });
       setEditing(null);
       setActiveSection('list');
-      uploadCounterRef.current = 1;
       fetchLocations();
     } catch (err: any) {
       showToast(err.message || 'Something went wrong.', 'error');
@@ -951,7 +943,6 @@ export default function AdminPanel() {
     setForm(normalized);
     setEditing(loc.id);
     setActiveSection('form');
-    uploadCounterRef.current = flattenNodeImages(nodes).length + 1;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -971,7 +962,6 @@ export default function AdminPanel() {
     setForm({ ...EMPTY_FORM });
     setEditing(null);
     setActiveSection('list');
-    uploadCounterRef.current = 1;
   };
 
   // ── Login Screen ──────────────────────────────────────────────────────────
@@ -1278,7 +1268,6 @@ export default function AdminPanel() {
                     value={form.img}
                     onChange={v => setForm(f => ({ ...f, img: v }))}
                     locationId={form.id}
-                    getNextIndex={getNextIndex}
                   />
                 </Field>
 
@@ -1288,7 +1277,6 @@ export default function AdminPanel() {
                     onChange={v => setForm(f => ({ ...f, hero_video: v }))}
                     accept="video/*"
                     locationId={form.id}
-                    getNextIndex={getNextIndex}
                   />
                 </Field>
 
@@ -1309,7 +1297,6 @@ export default function AdminPanel() {
                               return { ...f, featured_images: next };
                             })}
                             locationId={form.id}
-                            getNextIndex={getNextIndex}
                           />
                         </Field>
                       </div>
@@ -1322,7 +1309,6 @@ export default function AdminPanel() {
                     value={form.hero_poster}
                     onChange={v => setForm(f => ({ ...f, hero_poster: v }))}
                     locationId={form.id}
-                    getNextIndex={getNextIndex}
                   />
                 </Field>
               </div>
@@ -1361,7 +1347,6 @@ export default function AdminPanel() {
                     return { ...f, gallery_nodes, gallery_images: flattenNodeImages(gallery_nodes) };
                   })}
                   locationId={form.id}
-                  getNextIndex={getNextIndex}
                 />
               </div>
 
