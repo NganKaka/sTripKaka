@@ -624,14 +624,25 @@ function SingleFileUpload({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: -8, filter: 'blur(4px)' }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"
+            className="rounded-xl border border-white/10 bg-white/5 p-3"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
-                <div className="p-2 rounded-full bg-white/5 border border-white/10">
-                  {isVideo ? <Film size={16} className="text-primary/50" /> : <Image size={16} className="text-primary/50" />}
+                {!isVideo ? (
+                  <img
+                    src={value}
+                    alt="Uploaded preview"
+                    className="w-12 h-12 rounded-lg object-cover border border-white/10 bg-white/5"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+                    <Film size={16} className="text-primary/50" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs text-on-surface/80 truncate">{value.split('/').pop()}</p>
+                  <p className="text-[10px] font-tech text-secondary/40 uppercase tracking-wider">{isVideo ? 'Video uploaded' : 'Image uploaded'}</p>
                 </div>
-                <p className="text-xs text-on-surface/80 truncate">{value.split('/').pop()}</p>
               </div>
               <motion.button
                 whileHover={{ scale: 1.08 }}
