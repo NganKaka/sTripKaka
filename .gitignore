@@ -9,3 +9,6 @@ coverage/
 venv/
 __pycache__/
 *.pyc
+.claude/
+  backend/venv/
+  script.txt
