@@ -423,13 +423,13 @@ function GalleryNodesInput({
   locationId: string;
   getNextIndex: () => number;
 }) {
-  const updateNode = (index: number, patch: Partial<GalleryNode>) => {
-    onChange(nodes.map((node, i) => i === index ? { ...node, ...patch } : node));
+  const updateNode = (uid: string, patch: Partial<GalleryNode>) => {
+    onChange(nodes.map(node => node.uid === uid ? { ...node, ...patch } : node));
   };
 
-  const updateNodeImage = (nodeIndex: number, imageIndex: number, value: string) => {
-    onChange(nodes.map((node, i) => {
-      if (i !== nodeIndex) return node;
+  const updateNodeImage = (nodeUid: string, imageIndex: number, value: string) => {
+    onChange(nodes.map(node => {
+      if (node.uid !== nodeUid) return node;
       const images: [string, string, string] = [...node.images] as [string, string, string];
       images[imageIndex] = value;
       return { ...node, images };
@@ -506,7 +506,7 @@ function GalleryNodesInput({
                 <input
                   className={inputCls}
                   value={node.title}
-                  onChange={e => updateNode(index, { title: e.target.value })}
+                  onChange={e => updateNode(node.uid, { title: e.target.value })}
                   placeholder={`Node ${index + 1} title`}
                 />
               </Field>
@@ -516,7 +516,7 @@ function GalleryNodesInput({
                   className={inputCls + ' resize-none'}
                   rows={4}
                   value={node.description}
-                  onChange={e => updateNode(index, { description: e.target.value })}
+                  onChange={e => updateNode(node.uid, { description: e.target.value })}
                   placeholder="Write node description here..."
                 />
               </Field>
@@ -527,7 +527,7 @@ function GalleryNodesInput({
                     <Field label={`Image ${imageIndex + 1}`} icon={Image}>
                       <SingleFileUpload
                         value={image}
-                        onChange={value => updateNodeImage(index, imageIndex, value)}
+                        onChange={value => updateNodeImage(node.uid, imageIndex, value)}
                         locationId={locationId}
                         getNextIndex={getNextIndex}
                       />
