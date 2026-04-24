@@ -1,5 +1,5 @@
 import { motion, useScroll, useSpring, useInView } from 'framer-motion';
-import { Ship, Sun, Camera, Star, ArrowRight, Quote, ArrowLeft } from 'lucide-react';
+import { MapPin, Sun, Camera, ArrowRight, Quote, ArrowLeft } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { apiUrl } from '../lib/api';
 
@@ -8,26 +8,172 @@ interface TripDetailProps {
   locationId?: string;
 }
 
-const STATIC_METRICS: Record<string, any[]> = {
-  "phu_quoc": [
-    { icon: Ship, label: "Nautical Miles", value: 120 },
-    { icon: Sun,  label: "Sunset Hours",   value: 14  },
-    { icon: Camera, label: "Photos Taken", value: 450 },
-  ],
-  "hue": [
-    { icon: Star,   label: "Historical Sites", value: 12  },
-    { icon: Sun,    label: "Sunny Days",        value: 4   },
-    { icon: Camera, label: "Photos Taken",      value: 890 },
-  ],
+interface MetricItem {
+  icon: any;
+  label: string;
+  value: number | string;
+}
+
+interface LocationApiResponse {
+  id: string;
+  name: string;
+  short_desc: string;
+  chapter: string;
+  hero_video?: string;
+  hero_poster?: string;
+  featured_images?: string[];
+  full_description?: string;
+  gallery_nodes?: any[];
+  gallery_images?: string[];
+  img?: string;
+}
+
+interface TripState {
+  id: string;
+  title: string;
+  subtitle: string;
+  chapter: string;
+  video: string;
+  poster: string;
+  featured: string[];
+  metrics: MetricItem[];
+  storyTitle: string;
+  quote: string;
+  desc1: string;
+  desc2: string;
+  gallery: string[];
+}
+
+const PROVINCE_BY_LOCATION: Record<string, string> = {
+  phu_quoc: 'Kien Giang',
+  hue: 'Hue',
 };
 
-const DEFAULT_METRICS = [
-  { icon: Camera, label: "Photos Taken",  value: 0 },
-  { icon: Sun,    label: "Days Explored", value: 0 },
-  { icon: Star,   label: "Highlights",    value: 0 },
+const REGION_BY_PROVINCE: Record<string, string> = {
+  'Kien Giang': 'South',
+  Hue: 'Central',
+};
+
+const TRAVEL_QUOTES = [
+  'Travel far enough, you meet yourself.',
+  'Not all those who wander are lost.',
+  'Adventure is worthwhile in itself.',
+  'The journey, not the arrival, matters most.',
+  'Take only memories, leave only footprints.',
+  'To travel is to live.',
+  'Life begins at the end of your comfort zone.',
+  'A journey is best measured in stories, not miles.',
+  'Wherever you go becomes a part of you somehow.',
+  'Travel opens your heart and broadens your mind.',
+  'Collect moments, not things.',
+  'The world is too big to stay in one place.',
+  'Jobs fill your pocket, adventures fill your soul.',
+  'Better to see something once than hear about it a thousand times.',
+  'Travel is the only thing you buy that makes you richer.',
+  'The best view comes after the hardest climb.',
+  'Every destination has a story waiting for you.',
+  'The road is calling, and I must go.',
+  'In every walk with nature, one receives far more than he seeks.',
+  'Memories made on the road last a lifetime.',
 ];
 
-// ── Animated counter ──────────────────────────────────────────────────────────
+const getRandomQuote = () => TRAVEL_QUOTES[Math.floor(Math.random() * TRAVEL_QUOTES.length)];
+
+const getProvince = (id: string, name: string) => PROVINCE_BY_LOCATION[id] || name;
+const getRegion = (province: string) => REGION_BY_PROVINCE[province] || 'Unknown';
+
+const countImagesFromData = (galleryNodes: any[] = [], galleryImages: string[] = []) => {
+  const fromNodes = Array.isArray(galleryNodes)
+    ? galleryNodes.flatMap((node: any) => (Array.isArray(node.images) ? node.images.filter(Boolean) : []))
+    : [];
+  if (fromNodes.length) return fromNodes.length;
+  return Array.isArray(galleryImages) ? galleryImages.filter(Boolean).length : 0;
+};
+
+const FALLBACK_BY_LOCATION: Record<string, LocationApiResponse> = {
+  phu_quoc: {
+    id: 'phu_quoc',
+    name: 'Phu Quoc',
+    short_desc: 'Golden Hour Escape',
+    chapter: 'Chapter IX',
+    hero_video: '/videos/phu_quoc.mp4',
+    hero_poster: '/phu_quoc/pq_landscape_sea.jpg',
+    featured_images: [
+      '/phu_quoc/pq_landscape_sea.jpg',
+      '/phu_quoc/pq_landscape_lake.jpg',
+      '/phu_quoc/pq_landscape_cafe_highlands.jpg',
+    ],
+    full_description: 'We arrived on the island just as the monsoon retreated, leaving behind skies so clear it felt like stepping onto another planet.',
+    gallery_images: [
+      '/phu_quoc/pq_landscape_sea.jpg', '/phu_quoc/pq_landscape_lake.jpg',
+      '/phu_quoc/pq_landscape_cafe_highlands.jpg', '/phu_quoc/pq_landscape_sea_.jpg',
+      '/phu_quoc/pq_landscape_lake_2.jpg', '/phu_quoc/pq_landscape_sea_2.jpg',
+    ],
+    img: '/phu_quoc/pq_landscape_sea.jpg',
+  },
+  hue: {
+    id: 'hue',
+    name: 'Hue',
+    short_desc: 'Imperial Echoes',
+    chapter: 'Chapter III',
+    hero_video: '',
+    hero_poster: '/hue/hue_landscape_1.jpg',
+    featured_images: [
+      '/hue/hue_landscape_1.jpg',
+      '/hue/hue_landscape_2.jpg',
+      '/hue/hue_landscape_3.jpg',
+    ],
+    full_description: 'Walking through the ancient citadel, feeling the quiet pulse of a dynasty long past.',
+    gallery_images: [
+      '/hue/hue_landscape_1.jpg', '/hue/hue_landscape_2.jpg',
+      '/hue/hue_landscape_3.jpg', '/hue/hue_landscape_4.jpg',
+      '/hue/hue_landscape_5.jpg', '/hue/hue_landscape_6.jpg',
+      '/hue/hue_landscape_7.jpg',
+    ],
+    img: '/hue/hue_landscape_1.jpg',
+  },
+};
+
+const getFallbackLocation = (locationId: string): LocationApiResponse => FALLBACK_BY_LOCATION[locationId] || FALLBACK_BY_LOCATION.phu_quoc;
+
+const buildTripState = (locationId: string, data: LocationApiResponse): TripState => {
+  const galleryFromNodes = Array.isArray(data.gallery_nodes)
+    ? data.gallery_nodes.flatMap((node: any) => (Array.isArray(node.images) ? node.images.filter(Boolean) : []))
+    : [];
+
+  const gallery = galleryFromNodes.length ? galleryFromNodes : (data.gallery_images || []);
+
+  const featuredFromApi = Array.isArray(data.featured_images)
+    ? [data.featured_images[0] || '', data.featured_images[1] || '', data.featured_images[2] || ''].filter(Boolean)
+    : [];
+  const fallbackFeatured = [data.hero_poster || '', ...gallery].filter(Boolean);
+  const featured = (featuredFromApi.length ? featuredFromApi : fallbackFeatured).slice(0, 3);
+
+  const province = getProvince(locationId, data.name);
+  const region = getRegion(province);
+  const totalImages = countImagesFromData(data.gallery_nodes || [], data.gallery_images || []);
+
+  return {
+    id: locationId,
+    title: data.name,
+    subtitle: data.short_desc,
+    chapter: data.chapter,
+    video: data.hero_video || '',
+    poster: featured[0] || data.img || '',
+    featured,
+    metrics: [
+      { icon: MapPin, label: 'Province', value: province },
+      { icon: Sun, label: 'Region', value: region },
+      { icon: Camera, label: 'Photos Taken', value: totalImages },
+    ],
+    storyTitle: `Our Story at ${data.name}`,
+    quote: getRandomQuote(),
+    desc1: data.full_description || '',
+    desc2: '',
+    gallery,
+  };
+};
+
 function AnimatedNumber({ target }: { target: number }) {
   const [display, setDisplay] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
@@ -35,12 +181,10 @@ function AnimatedNumber({ target }: { target: number }) {
 
   useEffect(() => {
     if (!inView) return;
-    let start = 0;
     const duration = 1400;
     const step = (timestamp: number, startTime: number) => {
       const elapsed = timestamp - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // Ease out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       setDisplay(Math.round(eased * target));
       if (progress < 1) requestAnimationFrame(t => step(t, startTime));
@@ -51,7 +195,6 @@ function AnimatedNumber({ target }: { target: number }) {
   return <span ref={ref}>{display}</span>;
 }
 
-// ── Floating image ─────────────────────────────────────────────────────────────
 function FloatingImage({ src, alt, delay = 0, className = '' }: { src: string; alt: string; delay?: number; className?: string }) {
   return (
     <motion.div
@@ -69,55 +212,19 @@ function FloatingImage({ src, alt, delay = 0, className = '' }: { src: string; a
 }
 
 export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: TripDetailProps) {
-  const [tripData, setTripData] = useState<any>(null);
+  const [tripData, setTripData] = useState<TripState | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
     fetch(apiUrl(`/locations/${locationId}`))
       .then(res => { if (!res.ok) throw new Error('Not found'); return res.json(); })
-      .then(data => {
-        setTripData({
-          title: data.name,
-          subtitle: data.short_desc,
-          chapter: data.chapter,
-          video: data.hero_video || '',
-          poster: data.hero_poster || data.img || '',
-          metrics: STATIC_METRICS[locationId] || DEFAULT_METRICS,
-          desc1: data.full_description || '',
-          desc2: '',
-          gallery: data.gallery_images || [],
-        });
+      .then((data: LocationApiResponse) => {
+        setTripData(buildTripState(locationId, data));
         setLoading(false);
       })
       .catch(() => {
-        const fallback: Record<string, any> = {
-          phu_quoc: {
-            title: 'Phu Quoc', subtitle: 'Golden Hour Escape', chapter: 'Chapter IX',
-            video: '/videos/phu_quoc.mp4', poster: '/phu_quoc/pq_landscape_sea.jpg',
-            desc1: 'We arrived on the island just as the monsoon retreated, leaving behind skies so clear it felt like stepping onto another planet.',
-            desc2: 'We spent our days exploring hidden beaches illuminated by slivers of sunlight.',
-            gallery: [
-              '/phu_quoc/pq_landscape_sea.jpg', '/phu_quoc/pq_landscape_lake.jpg',
-              '/phu_quoc/pq_landscape_cafe_highlands.jpg', '/phu_quoc/pq_landscape_sea_.jpg',
-              '/phu_quoc/pq_landscape_lake_2.jpg', '/phu_quoc/pq_landscape_sea_2.jpg',
-            ],
-          },
-          hue: {
-            title: 'Hue', subtitle: 'Imperial Echoes', chapter: 'Chapter III',
-            video: '', poster: '/hue/hue_landscape_1.jpg',
-            desc1: 'Walking through the ancient citadel, feeling the quiet pulse of a dynasty long past.',
-            desc2: 'The perfume river flows silently beneath the Truong Tien bridge.',
-            gallery: [
-              '/hue/hue_landscape_1.jpg', '/hue/hue_landscape_2.jpg',
-              '/hue/hue_landscape_3.jpg', '/hue/hue_landscape_4.jpg',
-              '/hue/hue_landscape_5.jpg', '/hue/hue_landscape_6.jpg',
-              '/hue/hue_landscape_7.jpg',
-            ],
-          },
-        };
-        const d = fallback[locationId] || fallback['phu_quoc'];
-        setTripData({ ...d, metrics: STATIC_METRICS[locationId] || DEFAULT_METRICS });
+        setTripData(buildTripState(locationId, getFallbackLocation(locationId)));
         setLoading(false);
       });
   }, [locationId]);
@@ -138,8 +245,7 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
 
   if (!tripData) return null;
 
-  // Only show first 3 images as "featured" in the detail view
-  const featuredImgs = tripData.gallery.slice(0, 3);
+  const featuredImgs = (tripData.featured || tripData.gallery || []).slice(0, 3);
   const [heroImg, img2, img3] = featuredImgs;
 
   return (
@@ -149,7 +255,6 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
         style={{ scaleX }}
       />
       <div className="space-y-16">
-        {/* Back Button */}
         <div className="flex items-center">
           <button
             onClick={() => setActiveTab('Journal')}
@@ -160,7 +265,6 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
           </button>
         </div>
 
-        {/* Hero Section */}
         <section className="relative w-full h-[600px] md:h-[700px] rounded-xl overflow-hidden ambient-shadow flex flex-col justify-end bg-surface">
           <motion.div
             initial={{ clipPath: 'inset(100% 0 0 0)' }}
@@ -219,9 +323,12 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16">
-          {/* Left column: description + animated stats */}
           <div className="lg:col-span-5 space-y-12">
             <div className="space-y-6">
+              <div className="space-y-3">
+                <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em] block">Story Log</span>
+                <h2 className="font-headline text-3xl md:text-4xl font-bold tracking-tight text-on-surface">{tripData.storyTitle}</h2>
+              </div>
               <p className="text-lg md:text-xl font-medium text-on-surface leading-loose first-letter:text-6xl first-letter:font-headline first-letter:text-primary first-letter:float-left first-letter:mr-3 first-letter:mt-2 font-body drop-shadow-sm">
                 {tripData.desc1}
               </p>
@@ -230,9 +337,8 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
               )}
             </div>
 
-            {/* ── Animated stat cards ── */}
             <div className="grid grid-cols-2 gap-4">
-              {tripData.metrics.map((stat: any, i: number) => (
+              {tripData.metrics.map((stat: MetricItem, i: number) => (
                 <div key={i} className="glass-card rounded-xl p-6 ghost-border transition-all hover:bg-white/10 hover:shadow-[0_0_20px_rgba(233,195,73,0.1)] group">
                   <stat.icon className="text-secondary mb-3 group-hover:text-primary transition-colors drop-shadow-sm" size={24} />
                   <h4 className="font-headline text-[10px] uppercase tracking-[0.05em] text-secondary mb-1">{stat.label}</h4>
@@ -246,13 +352,11 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
             </div>
           </div>
 
-          {/* Right column: featured 3 images (floating) + button */}
           <div className="lg:col-span-7 space-y-8">
             <h3 className="font-headline text-2xl font-bold text-on-surface drop-shadow-[0_0_5px_rgba(255,255,255,0.2)]">Journey Gallery</h3>
 
             {featuredImgs.length > 0 ? (
               <div className="grid grid-cols-2 gap-4 auto-rows-[200px]">
-                {/* Hero image — large, floats */}
                 {heroImg && (
                   <motion.div
                     animate={{ y: [0, -10, 0] }}
@@ -272,9 +376,7 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
                   </motion.div>
                 )}
 
-                {/* img2 */}
                 {img2 && <FloatingImage src={img2} alt={`${tripData.title} - 2`} delay={0.8} />}
-                {/* img3 */}
                 {img3 && <FloatingImage src={img3} alt={`${tripData.title} - 3`} delay={1.6} />}
               </div>
             ) : (
@@ -283,15 +385,13 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
               </div>
             )}
 
-            {/* Quote block */}
             <div className="glass-card rounded-xl p-8 flex flex-col justify-center items-center text-center ghost-border relative overflow-hidden group transition-all hover:bg-white/10 hover:shadow-[0_0_30px_rgba(34,211,238,0.1)]">
               <Quote className="absolute top-4 left-4 text-white/5" size={64} />
               <p className="font-headline text-xl md:text-2xl font-medium text-secondary italic relative z-10 group-hover:text-cyan-100 transition-colors">
-                "The mist here doesn't obscure the view; it paints it, turning the landscape into a living watercolor."
+                "{tripData.quote}"
               </p>
             </div>
 
-            {/* See All Pictures → goes to /gallery/:id */}
             <div className="flex justify-center">
               <button
                 onClick={() => setActiveTab(`Gallery:${locationId}`)}

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, ARRAY
+from sqlalchemy import Column, String, Text, ARRAY, JSON
 from database import Base
 
 
@@ -18,5 +18,7 @@ class Location(Base):
     # Detailed content for Trip Detail / Gallery views
     hero_video = Column(String, nullable=True)
     hero_poster = Column(String, nullable=True)
+    featured_images = Column(ARRAY(String), nullable=True)
     full_description = Column(Text, nullable=True)
     gallery_images = Column(ARRAY(String), nullable=True)  # List of image URLs
+    gallery_nodes = Column(JSON, nullable=True)            # Structured gallery nodes

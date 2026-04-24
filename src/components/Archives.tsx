@@ -123,8 +123,9 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
                 key={e.id}
                 className="break-inside-avoid mb-8"
               >
-                <MagneticCard 
+                <MagneticCard
                   onClick={() => setActiveTab(`Destinations:${e.id}`)}
+                  attractOnProximity
                   className="glass-card rounded-xl overflow-hidden group flex flex-col transition-colors hover:shadow-[0_0_20px_rgba(34,211,238,0.15)] relative cursor-pointer"
                 >
                   <div style={{ height: e.h }} className="flex flex-col">

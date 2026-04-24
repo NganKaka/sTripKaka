@@ -1,5 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
+
+
+class GalleryNode(BaseModel):
+    title: str = ''
+    description: str = ''
+    images: List[str] = Field(default_factory=lambda: ['', '', ''], min_length=3, max_length=3)
 
 
 class LocationBase(BaseModel):
@@ -14,8 +20,10 @@ class LocationBase(BaseModel):
     lng: str
     hero_video: Optional[str] = None
     hero_poster: Optional[str] = None
+    featured_images: Optional[List[str]] = Field(default_factory=lambda: ['', '', ''], min_length=3, max_length=3)
     full_description: Optional[str] = None
     gallery_images: Optional[List[str]] = None
+    gallery_nodes: Optional[List[GalleryNode]] = None
 
 
 class LocationCreate(LocationBase):
@@ -34,8 +42,10 @@ class LocationPatch(BaseModel):
     lng: Optional[str] = None
     hero_video: Optional[str] = None
     hero_poster: Optional[str] = None
+    featured_images: Optional[List[str]] = Field(default_factory=lambda: ['', '', ''], min_length=3, max_length=3)
     full_description: Optional[str] = None
     gallery_images: Optional[List[str]] = None
+    gallery_nodes: Optional[List[GalleryNode]] = None
 
 
 class LocationOut(LocationBase):

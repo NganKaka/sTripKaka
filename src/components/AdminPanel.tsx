@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Edit3, Save, X, Image, MapPin, ChevronDown,
   Check, AlertCircle, Loader2, Globe, FileText, Film, Star, Calendar,
-  Upload, ImagePlus
+  Upload, ImagePlus, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
 
@@ -105,13 +105,55 @@ function slugify(str: string) {
     .replace(/\s+/g, '_');
 }
 
+type GalleryNode = {
+  uid: string;
+  title: string;
+  description: string;
+  images: [string, string, string];
+};
+
+const createNodeUid = () => `node_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+
+const createEmptyNode = (): GalleryNode => ({
+  uid: createNodeUid(),
+  title: '',
+  description: '',
+  images: ['', '', ''],
+});
+
+const createDefaultNodes = (): GalleryNode[] => [createEmptyNode(), createEmptyNode(), createEmptyNode()];
+
+const normalizeNode = (node: any): GalleryNode => ({
+  uid: node?.uid || createNodeUid(),
+  title: node?.title || '',
+  description: node?.description || '',
+  images: [node?.images?.[0] || '', node?.images?.[1] || '', node?.images?.[2] || ''],
+});
+
+const nodesFromLegacyImages = (images: string[] = []): GalleryNode[] => {
+  if (!images.length) return createDefaultNodes();
+  const nodes: GalleryNode[] = [];
+  for (let i = 0; i < images.length; i += 3) {
+    nodes.push({
+      uid: createNodeUid(),
+      title: `Node ${nodes.length + 1}`,
+      description: '',
+      images: [images[i] || '', images[i + 1] || '', images[i + 2] || ''],
+    });
+  }
+  return nodes;
+};
+
+const flattenNodeImages = (nodes: GalleryNode[]): string[] => nodes.flatMap(node => node.images).filter(Boolean);
+const serializeNodesForPayload = (nodes: GalleryNode[]) => nodes.map(({ title, description, images }) => ({ title, description, images }));
+
 const EMPTY_FORM = {
   id: '', name: '', chapter: 'Chapter I', short_desc: '', img: '',
   visited_date: '', highlight_type: 'secondary', lat: '', lng: '',
-  hero_video: '', hero_poster: '', full_description: '',
+  hero_video: '', hero_poster: '', featured_images: ['', '', ''] as [string, string, string], full_description: '',
   gallery_images: [] as string[],
+  gallery_nodes: createDefaultNodes(),
 };
-
 type Location = typeof EMPTY_FORM;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -235,7 +277,7 @@ function ChapterSelector({ value, onChange }: { value: string; onChange: (v: str
   }, []);
 
   return (
-    <div ref={ref} className="relative z-[110]">
+    <div ref={ref} className="relative z-10">
       <div className="relative group">
         <input
           className={inputCls + " pl-10 pr-10 font-tech font-bold text-primary"}
@@ -367,169 +409,162 @@ function Autocomplete({
   );
 }
 
-// ── Gallery Input with Drag & Drop ────────────────────────────────────────────
-function GalleryInput({
-  images,
+// ── Gallery Nodes Input ───────────────────────────────────────────────────────
+function GalleryNodesInput({
+  nodes,
   onChange,
   locationId,
   getNextIndex,
 }: {
-  images: string[];
-  onChange: (imgs: string[]) => void;
+  nodes: GalleryNode[];
+  onChange: (nodes: GalleryNode[]) => void;
   locationId: string;
   getNextIndex: () => number;
 }) {
-  const [newUrl, setNewUrl] = useState('');
-  const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const add = () => { if (newUrl.trim()) { onChange([...images, newUrl.trim()]); setNewUrl(''); } };
-  const remove = (i: number) => onChange(images.filter((_, idx) => idx !== i));
-
-  const uploadFiles = async (files: FileList | File[]) => {
-    const arr = Array.from(files).filter(f => f.type.startsWith('image/'));
-    if (!arr.length) return;
-    setUploading(true);
-    try {
-      const urls: string[] = [];
-      for (const file of arr) {
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const base = locationId || 'location';
-        const idx = getNextIndex();
-        const newFilename = `${base}_${idx}.${ext}`;
-        const fd = new FormData();
-        fd.append('file', new File([file], newFilename, { type: file.type }));
-        const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
-        if (res.ok) {
-          const data = await res.json();
-          urls.push(data.url);
-        }
-      }
-      if (urls.length) onChange([...images, ...urls]);
-    } finally {
-      setUploading(false);
-    }
+  const updateNode = (index: number, patch: Partial<GalleryNode>) => {
+    onChange(nodes.map((node, i) => i === index ? { ...node, ...patch } : node));
   };
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
-  }, [images]);
+  const updateNodeImage = (nodeIndex: number, imageIndex: number, value: string) => {
+    onChange(nodes.map((node, i) => {
+      if (i !== nodeIndex) return node;
+      const images: [string, string, string] = [...node.images] as [string, string, string];
+      images[imageIndex] = value;
+      return { ...node, images };
+    }));
+  };
+
+  const addNode = () => onChange([...nodes, createEmptyNode()]);
+  const deleteNode = (index: number) => onChange(nodes.filter((_, i) => i !== index));
+  const moveNode = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= nodes.length) return;
+    const nextNodes = [...nodes];
+    [nextNodes[index], nextNodes[nextIndex]] = [nextNodes[nextIndex], nextNodes[index]];
+    onChange(nextNodes);
+  };
 
   return (
-    <div className="space-y-4">
-      {/* URL input row */}
-      <div className="flex gap-2">
-        <div className="relative flex-1 group">
-          <input
-            className={inputCls + ' pl-9'}
-            placeholder="Paste image URL (https://... or /hue/image.jpg)"
-            value={newUrl}
-            onChange={e => setNewUrl(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
-          />
-          <Image size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary/40 group-focus-within:text-primary/70 transition-colors" />
-        </div>
-        <button type="button" onClick={add}
-          className="px-4 py-2 bg-primary/20 hover:bg-primary/30 border border-primary/40 rounded-lg text-primary text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer active:scale-95">
-          <Plus size={14} /> Add
-        </button>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[10px] font-tech text-secondary/40 uppercase tracking-wider">{nodes.length} nodes</span>
       </div>
 
-      <div className="relative">
-        <div className="absolute inset-0 bg-primary/5 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-        <div
-          onDragOver={e => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={`relative flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed py-10 cursor-pointer transition-all select-none overflow-hidden
-            ${dragging
-              ? 'border-primary bg-primary/10 shadow-[0_0_30px_rgba(233,195,73,0.3)] scale-[1.02]'
-              : 'border-white/10 hover:border-primary/30 hover:bg-white/5'
-            }`}
+      <AnimatePresence initial={false} mode="popLayout">
+        {nodes.map((node, index) => (
+          <motion.div
+            key={node.uid}
+            layout
+            initial={{ opacity: 0, y: 24, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -18, scale: 0.96, filter: 'blur(6px)' }}
+            transition={{ layout: { duration: 0.28, ease: 'easeInOut' }, duration: 0.24, ease: 'easeOut' }}
+            className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4 hover:border-primary/20 hover:bg-white/[0.05] transition-colors"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-tech text-primary uppercase tracking-[0.25em]">NODE_{String(index + 1).padStart(2, '0')}</p>
+                <p className="text-xs text-secondary/50 mt-1">Each node contains title, description and exactly 3 images.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <motion.button
+                  whileHover={index === 0 ? undefined : { y: -2, scale: 1.05 }}
+                  whileTap={index === 0 ? undefined : { scale: 0.95 }}
+                  type="button"
+                  onClick={() => moveNode(index, -1)}
+                  disabled={index === 0}
+                  className="p-2 rounded-lg bg-white/5 border border-white/10 text-secondary/60 hover:text-primary hover:border-primary/30 hover:bg-primary/10 hover:shadow-[0_0_18px_rgba(233,195,73,0.16)] disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  <ArrowUp size={14} />
+                </motion.button>
+                <motion.button
+                  whileHover={index === nodes.length - 1 ? undefined : { y: 2, scale: 1.05 }}
+                  whileTap={index === nodes.length - 1 ? undefined : { scale: 0.95 }}
+                  type="button"
+                  onClick={() => moveNode(index, 1)}
+                  disabled={index === nodes.length - 1}
+                  className="p-2 rounded-lg bg-white/5 border border-white/10 text-secondary/60 hover:text-primary hover:border-primary/30 hover:bg-primary/10 hover:shadow-[0_0_18px_rgba(233,195,73,0.16)] disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  <ArrowDown size={14} />
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  type="button"
+                  onClick={() => deleteNode(index)}
+                  className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-400/35 hover:shadow-[0_0_20px_rgba(239,68,68,0.18)] transition-all cursor-pointer"
+                >
+                  <Trash2 size={14} />
+                </motion.button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Field label="Node Header" icon={FileText}>
+                <input
+                  className={inputCls}
+                  value={node.title}
+                  onChange={e => updateNode(index, { title: e.target.value })}
+                  placeholder={`Node ${index + 1} title`}
+                />
+              </Field>
+
+              <Field label="Node Description" icon={FileText}>
+                <textarea
+                  className={inputCls + ' resize-none'}
+                  rows={4}
+                  value={node.description}
+                  onChange={e => updateNode(index, { description: e.target.value })}
+                  placeholder="Write node description here..."
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {node.images.map((image, imageIndex) => (
+                  <div key={`${node.uid}-image-${imageIndex}`}>
+                    <Field label={`Image ${imageIndex + 1}`} icon={Image}>
+                      <SingleFileUpload
+                        value={image}
+                        onChange={value => updateNodeImage(index, imageIndex, value)}
+                        locationId={locationId}
+                        getNextIndex={getNextIndex}
+                      />
+                    </Field>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  type="button"
+                  onClick={() => deleteNode(index)}
+                  className="px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-400/35 transition-all cursor-pointer text-xs font-bold"
+                >
+                  Delete Node
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+
+      <div className="flex justify-center pt-2">
+        <motion.button
+          whileHover={{ y: -2, scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          type="button"
+          onClick={addNode}
+          className="px-5 py-2.5 bg-primary/20 hover:bg-primary/30 border border-primary/40 rounded-xl text-primary text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer active:scale-95 shadow-[0_0_18px_rgba(233,195,73,0.14)] hover:shadow-[0_0_26px_rgba(233,195,73,0.22)]"
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={e => e.target.files && uploadFiles(e.target.files)}
-          />
-          
-          {uploading ? (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center gap-3"
-            >
-              <div className="relative">
-                <Loader2 size={32} className="text-primary animate-spin" />
-                <div className="absolute inset-0 blur-md bg-primary/20 animate-pulse" />
-              </div>
-              <p className="text-xs font-tech text-primary uppercase tracking-[0.2em] font-bold">Processing Stream...</p>
-            </motion.div>
-          ) : (
-            <>
-              <div className="p-4 rounded-full bg-white/5 border border-white/10 group-hover:border-primary/20 transition-colors">
-                <div className="flex items-center gap-1">
-                  <Upload size={24} className="text-primary/60" />
-                  <ImagePlus size={24} className="text-primary/60" />
-                </div>
-              </div>
-              <div className="text-center space-y-1">
-                <p className="text-sm font-body font-medium text-on-surface/90">
-                  <span className="text-primary font-bold decoration-primary/30 decoration-2 underline-offset-4 hover:underline">Click to browse</span> or drag images here
-                </p>
-                <p className="text-[10px] font-tech text-secondary/40 uppercase tracking-widest">
-                  Supports JPG, PNG, WEBP • Max 10MB per file
-                </p>
-              </div>
-            </>
-          )}
-        </div>
+          <Plus size={14} /> Add 1 Node
+        </motion.button>
       </div>
-
-      {/* Gallery Preview Grid */}
-      {images.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
-          <AnimatePresence>
-            {images.map((src, i) => (
-              <motion.div
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                key={src + i}
-                className="relative group rounded-xl overflow-hidden aspect-video bg-surface-container shadow-lg border border-white/5"
-              >
-                <img src={src} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  onError={e => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x225?text=Invalid+Image'; }} />
-                
-                <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center gap-2">
-                  <button 
-                    type="button" 
-                    onClick={() => remove(i)}
-                    className="p-2.5 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/30 transition-all active:scale-90 shadow-lg backdrop-blur-md"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-                
-                <div className="absolute top-2 left-2 px-2 py-1 rounded-md bg-background/60 backdrop-blur-md border border-white/10 text-[8px] font-tech text-white/60 opacity-0 group-hover:opacity-100 transition-opacity">
-                  IMAGE_{i+1}.DAT
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
     </div>
   );
 }
+
 
 // ── Single File Upload ───────────────────────────────────────────────────────
 function SingleFileUpload({
@@ -571,56 +606,91 @@ function SingleFileUpload({
 
   return (
     <div className="space-y-2">
-      <div
-        onDragOver={e => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) uploadFile(f); }}
-        onClick={() => !uploading && fileInputRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-7 cursor-pointer transition-all select-none overflow-hidden
-          ${dragging ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(233,195,73,0.2)] scale-[1.01]' : 'border-white/10 hover:border-primary/30 hover:bg-white/5'}`}
-      >
-        <input ref={fileInputRef} type="file" accept={accept} className="hidden"
-          onChange={e => e.target.files?.[0] && uploadFile(e.target.files[0])} />
-        {uploading ? (
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 size={22} className="text-primary animate-spin" />
-            <span className="text-[10px] font-tech text-primary uppercase tracking-widest">Uploading...</span>
-          </div>
-        ) : (
-          <>
-            <div className="p-2.5 rounded-full bg-white/5 border border-white/10">
-              {isVideo ? <Film size={18} className="text-primary/50" /> : <Image size={18} className="text-primary/50" />}
-            </div>
-            <p className="text-xs font-body text-secondary/50 text-center px-4">
-              <span className="text-primary font-semibold">Click to browse</span> or drag file here
-            </p>
-            {locationId && (
-              <p className="text-[9px] font-tech text-secondary/30 uppercase tracking-widest">
-                → {locationId}_n.{isVideo ? 'mp4' : 'jpg/png'}
-              </p>
-            )}
-          </>
-        )}
-      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={e => e.target.files?.[0] && uploadFile(e.target.files[0])}
+      />
 
-      {value && !uploading && (
-        <div className="relative rounded-xl overflow-hidden border border-white/10 bg-white/5">
-          {isVideo
-            ? <video src={value} className="w-full h-28 object-cover" muted />
-            : <img src={value} alt="" className="w-full h-28 object-cover"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-          }
-          <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent pointer-events-none" />
-          <p className="absolute bottom-2 left-3 text-[9px] font-tech text-white/50 truncate pr-10">{value.split('/').pop()}</p>
-          <button type="button" onClick={() => onChange('')}
-            className="absolute top-2 right-2 p-1.5 rounded-full bg-background/70 border border-white/10 text-red-400 hover:bg-red-500/20 transition-all">
-            <X size={12} />
-          </button>
-        </div>
-      )}
+      <AnimatePresence mode="wait" initial={false}>
+        {value && !uploading ? (
+          <motion.div
+            key="uploaded-file"
+            initial={{ opacity: 0, scale: 0.95, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: -8, filter: 'blur(4px)' }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-2 rounded-full bg-white/5 border border-white/10">
+                  {isVideo ? <Film size={16} className="text-primary/50" /> : <Image size={16} className="text-primary/50" />}
+                </div>
+                <p className="text-xs text-on-surface/80 truncate">{value.split('/').pop()}</p>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                type="button"
+                onClick={() => onChange('')}
+                className="p-1.5 rounded-full bg-background/70 border border-white/10 text-red-400 hover:bg-red-500/20 hover:border-red-400/40 transition-all"
+              >
+                <Trash2 size={12} />
+              </motion.button>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="upload-dropzone"
+            initial={{ opacity: 0, scale: 0.97, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -10, filter: 'blur(5px)' }}
+            transition={{ duration: 0.24, ease: 'easeOut' }}
+            onDragOver={e => { e.preventDefault(); if (!uploading) setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={e => {
+              e.preventDefault();
+              setDragging(false);
+              const f = e.dataTransfer.files[0];
+              if (f && !uploading) uploadFile(f);
+            }}
+            onClick={() => !uploading && fileInputRef.current?.click()}
+            className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-7 cursor-pointer transition-all duration-200 select-none overflow-hidden
+              ${dragging ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(233,195,73,0.2)] scale-[1.01]' : 'border-white/10 hover:border-primary/40 hover:bg-white/5 hover:shadow-[0_0_20px_rgba(233,195,73,0.08)]'}`}
+          >
+            {uploading ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 size={22} className="text-primary animate-spin" />
+                <span className="text-[10px] font-tech text-primary uppercase tracking-widest">Uploading...</span>
+              </div>
+            ) : (
+              <>
+                <motion.div
+                  whileHover={{ scale: 1.08, rotate: 2 }}
+                  className="p-2.5 rounded-full bg-white/5 border border-white/10 transition-all"
+                >
+                  {isVideo ? <Film size={18} className="text-primary/50" /> : <Image size={18} className="text-primary/50" />}
+                </motion.div>
+                <p className="text-xs font-body text-secondary/50 text-center px-4 transition-colors hover:text-secondary/70">
+                  <span className="text-primary font-semibold">Click to browse</span> or drag file here
+                </p>
+                {locationId && (
+                  <p className="text-[9px] font-tech text-secondary/30 uppercase tracking-widest">
+                    → {locationId}_n.{isVideo ? 'mp4' : 'jpg/png'}
+                  </p>
+                )}
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ msg, type }: { msg: string; type: 'success' | 'error' }) {
@@ -639,7 +709,7 @@ function Toast({ msg, type }: { msg: string; type: 'success' | 'error' }) {
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function AdminPanel() {
   const [locations, setLocations] = useState<Location[]>([]);
-  const [form, setForm] = useState<Location>({ ...EMPTY_FORM });
+  const [form, setForm] = useState<Location>({ ...EMPTY_FORM, gallery_nodes: createDefaultNodes() });
   const [editing, setEditing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -710,7 +780,9 @@ export default function AdminPanel() {
     try {
       const payload = {
         ...form,
-        gallery_images: form.gallery_images.length ? form.gallery_images : null,
+        gallery_nodes: serializeNodesForPayload(form.gallery_nodes),
+        gallery_images: flattenNodeImages(form.gallery_nodes).length ? flattenNodeImages(form.gallery_nodes) : null,
+        featured_images: form.featured_images,
         hero_video: form.hero_video || null,
         hero_poster: form.hero_poster || null,
         full_description: form.full_description || null,
@@ -732,7 +804,7 @@ export default function AdminPanel() {
         showToast(`"${form.name}" added to the journey!`, 'success');
       }
 
-      setForm({ ...EMPTY_FORM });
+      setForm({ ...EMPTY_FORM, gallery_nodes: createDefaultNodes() });
       setEditing(null);
       setActiveSection('list');
       uploadCounterRef.current = 1;
@@ -744,11 +816,27 @@ export default function AdminPanel() {
     }
   };
 
-  const handleEdit = (loc: Location) => {
-    setForm({ ...loc, gallery_images: loc.gallery_images || [] });
+  const handleEdit = (loc: any) => {
+    const legacyImages: string[] = loc.gallery_images || [];
+    const nodes: GalleryNode[] = Array.isArray(loc.gallery_nodes) && loc.gallery_nodes.length
+      ? loc.gallery_nodes.map(normalizeNode)
+      : nodesFromLegacyImages(legacyImages);
+    const featuredImages = Array.isArray(loc.featured_images) && loc.featured_images.length
+      ? [loc.featured_images[0] || '', loc.featured_images[1] || '', loc.featured_images[2] || ''] as [string, string, string]
+      : [loc.hero_poster || '', '', ''] as [string, string, string];
+
+    const normalized = {
+      ...EMPTY_FORM,
+      ...loc,
+      featured_images: featuredImages,
+      gallery_nodes: nodes,
+      gallery_images: legacyImages,
+    };
+
+    setForm(normalized);
     setEditing(loc.id);
     setActiveSection('form');
-    uploadCounterRef.current = (loc.gallery_images?.length || 0) + 1;
+    uploadCounterRef.current = flattenNodeImages(nodes).length + 1;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1009,20 +1097,45 @@ export default function AdminPanel() {
                   />
                 </Field>
 
-                <Field label="Hero Poster (TripDetail header)" icon={Image}>
-                  <SingleFileUpload
-                    value={form.hero_poster}
-                    onChange={v => setForm(f => ({ ...f, hero_poster: v }))}
-                    locationId={form.id}
-                    getNextIndex={getNextIndex}
-                  />
-                </Field>
-
                 <Field label="Hero Video (optional)" icon={Film}>
                   <SingleFileUpload
                     value={form.hero_video}
                     onChange={v => setForm(f => ({ ...f, hero_video: v }))}
                     accept="video/*"
+                    locationId={form.id}
+                    getNextIndex={getNextIndex}
+                  />
+                </Field>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-tech uppercase tracking-widest text-secondary/70">Featured Images (Top 3)</p>
+                    <span className="text-[10px] font-tech text-secondary/40 uppercase tracking-wider">Used in TripDetail hero/gallery</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {form.featured_images.map((image, index) => (
+                      <div key={`featured-image-${index}`}>
+                        <Field label={`Featured ${index + 1}`} icon={Image}>
+                          <SingleFileUpload
+                            value={image}
+                            onChange={v => setForm(f => {
+                              const next: [string, string, string] = [...f.featured_images] as [string, string, string];
+                              next[index] = v;
+                              return { ...f, featured_images: next };
+                            })}
+                            locationId={form.id}
+                            getNextIndex={getNextIndex}
+                          />
+                        </Field>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Field label="Legacy Hero Poster (fallback only)" icon={Image}>
+                  <SingleFileUpload
+                    value={form.hero_poster}
+                    onChange={v => setForm(f => ({ ...f, hero_poster: v }))}
                     locationId={form.id}
                     getNextIndex={getNextIndex}
                   />
@@ -1051,21 +1164,21 @@ export default function AdminPanel() {
               {/* Gallery */}
               <div className="glass-card rounded-xl p-6 ghost-border space-y-4">
                 <h2 className="font-headline font-bold text-on-surface text-base flex items-center gap-2">
-                  <Image size={16} className="text-primary" /> Gallery Images
+                  <Image size={16} className="text-primary" /> Gallery Nodes
                   <span className="ml-auto text-[10px] font-tech text-secondary/40 uppercase tracking-wider">
-                    {form.gallery_images.length} images
+                    {form.gallery_nodes.length} nodes
                   </span>
                 </h2>
-                <GalleryInput
-                  images={form.gallery_images}
-                  onChange={imgs => setForm(f => ({ ...f, gallery_images: imgs }))}
+                <GalleryNodesInput
+                  nodes={form.gallery_nodes}
+                  onChange={nodes => setForm(f => ({ ...f, gallery_nodes: nodes, gallery_images: flattenNodeImages(nodes) }))}
                   locationId={form.id}
                   getNextIndex={getNextIndex}
                 />
               </div>
 
               {/* Submit */}
-              <div className="flex gap-3">
+              <motion.div layout transition={{ layout: { duration: 0.28, ease: 'easeInOut' } }} className="flex gap-3">
                 <button type="submit" disabled={loading}
                   className="flex-1 flex items-center justify-center gap-2 px-8 py-3.5 bg-primary text-background font-headline font-bold rounded-xl text-sm shadow-[0_0_20px_rgba(233,195,73,0.4)] hover:shadow-[0_0_30px_rgba(233,195,73,0.7)] transition-all hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
@@ -1077,7 +1190,7 @@ export default function AdminPanel() {
                     Cancel
                   </button>
                 )}
-              </div>
+              </motion.div>
             </div>
           </motion.form>
         )}

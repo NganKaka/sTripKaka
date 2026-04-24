@@ -49,11 +49,18 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/stripkaka_db
 From the project root:
 
 ```powershell
-npm install
-npm run dev
+yarn install
+yarn dev
 ```
 
 Frontend runs on `http://localhost:3000`.
+
+Quick start:
+
+1. Open a terminal at the project root.
+2. Run `yarn install` once to install dependencies.
+3. Run `yarn dev` to start the frontend.
+4. Open `http://localhost:3000` in your browser.
 
 ## Run Backend
 
@@ -90,9 +97,9 @@ This seeds the sample destinations currently used by the UI, such as `phu_quoc` 
 From the project root:
 
 ```powershell
-npm run dev
-npm run build
-npm run lint
+yarn dev
+yarn build
+yarn lint
 ```
 
 From `backend/`:

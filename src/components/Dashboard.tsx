@@ -1,8 +1,82 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion';
-import { Globe, Plane, Map as MapIcon, Compass } from 'lucide-react';
+import { Globe, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
 import InteractiveMap from './InteractiveMap';
 import { apiUrl } from '../lib/api';
+
+interface DbLocation {
+  id: string;
+  name: string;
+  chapter: string;
+  short_desc: string;
+  img: string;
+  visited_date: string;
+  highlight_type: string;
+  lat: string;
+  lng: string;
+  gallery_nodes?: { images?: string[] }[];
+  gallery_images?: string[];
+}
+
+interface MetricItem {
+  icon: any;
+  value: string;
+  label: string;
+}
+
+const sortByVisitedDateDesc = (a: DbLocation, b: DbLocation) => {
+  const aTs = Date.parse(a.visited_date || '');
+  const bTs = Date.parse(b.visited_date || '');
+  if (!Number.isNaN(aTs) && !Number.isNaN(bTs)) return bTs - aTs;
+  if (!Number.isNaN(aTs)) return -1;
+  if (!Number.isNaN(bTs)) return 1;
+  return b.id.localeCompare(a.id);
+};
+
+const countLocationImages = (location: DbLocation): number => {
+  const nodeImages = Array.isArray(location.gallery_nodes)
+    ? location.gallery_nodes.flatMap(node => Array.isArray(node.images) ? node.images.filter(Boolean) : [])
+    : [];
+  if (nodeImages.length) return nodeImages.length;
+  return Array.isArray(location.gallery_images) ? location.gallery_images.filter(Boolean).length : 0;
+};
+
+const computeMetrics = (locations: DbLocation[]): MetricItem[] => {
+  const expeditionCount = locations.length;
+  const totalImages = locations.reduce((sum, location) => sum + countLocationImages(location), 0);
+
+  return [
+    { icon: Globe, value: String(expeditionCount), label: 'Expeditions' },
+    { icon: ImageIcon, value: String(totalImages), label: 'Total Images' },
+    { icon: MapIcon, value: '0', label: 'International Explored' },
+  ];
+};
+
+const fallbackChapters = [
+  { id: 'phu_quoc', name: 'Sunset over Phu Quoc', chapter: 'Chapter IX', short_desc: 'Golden hour painting the ocean. A perfect escape into the warm coastal breeze.', img: '/phu_quoc/pq_landscape_sea.jpg', lat: '10.2899', lng: '103.9840', visited_date: '2024-09-01' },
+  { id: 'hue', name: 'Imperial Echoes', chapter: 'Chapter III', short_desc: 'Walking through the ancient citadel, feeling the quiet pulse of a dynasty long past.', img: '/hue/hue_landscape_2.jpg', lat: '16.4637', lng: '107.5909', visited_date: '2024-04-01' },
+  { id: 'hokkaido', name: 'The Silent Pines', chapter: 'Chapter XII', short_desc: 'Deep in the northern forests, absolute silence reigns supreme.', img: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=800', lat: '43.0641', lng: '141.3469', visited_date: '2024-01-01' }
+];
+
+const fallbackMetrics: MetricItem[] = [
+  { icon: Globe, value: String(fallbackChapters.length), label: 'Expeditions' },
+  { icon: ImageIcon, value: '0', label: 'Total Images' },
+  { icon: MapIcon, value: '0', label: 'International Explored' },
+];
+
+const getLatestTripName = (locations: DbLocation[]) => {
+  if (!locations.length) return '';
+  const sorted = locations.slice().sort(sortByVisitedDateDesc);
+  return sorted[0]?.name || '';
+};
+
+const toRecentCards = (locations: DbLocation[]) =>
+  locations
+    .slice()
+    .sort(sortByVisitedDateDesc)
+    .slice(0, 3);
+
+const toProvinceCount = (locations: DbLocation[]) => locations.length;
 
 interface DashboardProps {
   setActiveTab: (tab: string) => void;
@@ -85,35 +159,67 @@ function Typewriter({ words }: { words: string[] }) {
   );
 }
 
-export function MagneticCard({ children, onClick, className }: any) {
+export function MagneticCard({ children, onClick, className, attractOnProximity = false }: any) {
+  const ref = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
-  
+
   const mouseXSpring = useSpring(x, { stiffness: 150, damping: 15 });
   const mouseYSpring = useSpring(y, { stiffness: 150, damping: 15 });
-  
+
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["15deg", "-15deg"]);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-15deg", "15deg"]);
   const translateX = useTransform(mouseXSpring, [-0.5, 0.5], ["-30px", "30px"]);
   const translateY = useTransform(mouseYSpring, [-0.5, 0.5], ["-30px", "30px"]);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
+  const setFromPointer = (clientX: number, clientY: number, rect: DOMRect) => {
     const width = rect.width;
     const height = rect.height;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const mouseX = clientX - rect.left;
+    const mouseY = clientY - rect.top;
     x.set(mouseX / width - 0.5);
     y.set(mouseY / height - 0.5);
   };
 
-  const handleMouseLeave = () => {
-    x.set(0);
-    y.set(0);
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setFromPointer(e.clientX, e.clientY, rect);
   };
+
+  const handleMouseLeave = () => {
+    if (!attractOnProximity) {
+      x.set(0);
+      y.set(0);
+    }
+  };
+
+  useEffect(() => {
+    if (!attractOnProximity) return;
+    const handler = (e: MouseEvent) => {
+      if (!ref.current) return;
+      const rect = ref.current.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const dx = e.clientX - centerX;
+      const dy = e.clientY - centerY;
+      const distance = Math.hypot(dx, dy);
+      const radius = 180;
+
+      if (distance <= radius) {
+        setFromPointer(e.clientX, e.clientY, rect);
+      } else {
+        x.set(0);
+        y.set(0);
+      }
+    };
+
+    window.addEventListener('mousemove', handler);
+    return () => window.removeEventListener('mousemove', handler);
+  }, [attractOnProximity]);
 
   return (
     <motion.div
+      ref={ref}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       style={{ rotateY, rotateX, x: translateX, y: translateY, transformStyle: "preserve-3d" }}
@@ -134,30 +240,28 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
   const y1 = useTransform(scrollY, [0, 1000], [0, -150]);
   const y2 = useTransform(scrollY, [0, 1000], [0, -250]);
   const y3 = useTransform(scrollY, [0, 1000], [0, -80]);
-  const metrics = [
-    { icon: Globe, value: "42", label: "Coordinates Explored" },
-    { icon: Plane, value: "18", label: "Expeditions" },
-    { icon: MapIcon, value: "7", label: "Regions Mapped" }
-  ];
-
-  const [dbChapters, setDbChapters] = useState<any[]>([]);
+  const [dbChapters, setDbChapters] = useState<DbLocation[]>([]);
 
   useEffect(() => {
-    fetch(apiUrl('/locations?limit=3'))
+    fetch(apiUrl('/locations'))
       .then(res => res.json())
-      .then(data => {
-        if (data && data.length > 0) setDbChapters(data);
+      .then((data: DbLocation[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setDbChapters(data);
+        } else {
+          setDbChapters([]);
+        }
       })
-      .catch(err => console.error("Error fetching chapters:", err));
+      .catch(err => {
+        console.error('Error fetching chapters:', err);
+        setDbChapters([]);
+      });
   }, []);
 
-  const chapters = [
-    { id: "phu_quoc", name: "Sunset over Phu Quoc", chapter: "Chapter IX", short_desc: "Golden hour painting the ocean. A perfect escape into the warm coastal breeze.", img: "/phu_quoc/pq_landscape_sea.jpg", lat: "10.2899", lng: "103.9840" },
-    { id: "hue", name: "Imperial Echoes", chapter: "Chapter III", short_desc: "Walking through the ancient citadel, feeling the quiet pulse of a dynasty long past.", img: "/hue/hue_landscape_2.jpg", lat: "16.4637", lng: "107.5909" },
-    { id: "hokkaido", name: "The Silent Pines", chapter: "Chapter XII", short_desc: "Deep in the northern forests, absolute silence reigns supreme.", img: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=800", lat: "43.0641", lng: "141.3469" }
-  ];
-
-  const displayList = dbChapters.length > 0 ? dbChapters : chapters;
+  const displayList = dbChapters.length > 0 ? toRecentCards(dbChapters) : fallbackChapters;
+  const metrics = dbChapters.length > 0 ? computeMetrics(dbChapters) : fallbackMetrics;
+  const provinceCount = dbChapters.length > 0 ? toProvinceCount(dbChapters) : fallbackChapters.length;
+  const recentTripName = dbChapters.length > 0 ? getLatestTripName(dbChapters) : fallbackChapters[0].name;
 
   return (
     <div className="space-y-24">
@@ -187,39 +291,33 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
 
         <div className="relative h-[500px] hidden md:block">
           <motion.div style={{ y: y1 }} className="absolute top-0 right-12 z-20">
-            <MagneticCard>
-              <motion.div 
-                animate={{ y: [0, -20, 0] }}
-                transition={{ duration: 6, ease: "easeInOut", repeat: Infinity }}
-                className="w-48 h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
-              >
-                <img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
-              </motion.div>
-            </MagneticCard>
+            <motion.div
+              animate={{ y: [0, -20, 0] }}
+              transition={{ duration: 6, ease: "easeInOut", repeat: Infinity }}
+              className="w-48 h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+            >
+              <img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
+            </motion.div>
           </motion.div>
-          
+
           <motion.div style={{ y: y2 }} className="absolute top-32 right-64 z-30">
-            <MagneticCard>
-              <motion.div 
-                animate={{ y: [0, 25, 0] }}
-                transition={{ duration: 8, ease: "easeInOut", repeat: Infinity }}
-                className="w-56 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
-              >
-                <img src="https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
-              </motion.div>
-            </MagneticCard>
+            <motion.div
+              animate={{ y: [0, 25, 0] }}
+              transition={{ duration: 8, ease: "easeInOut", repeat: Infinity }}
+              className="w-56 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+            >
+              <img src="https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
+            </motion.div>
           </motion.div>
-          
+
           <motion.div style={{ y: y3 }} className="absolute top-10 right-[-20px] z-40">
-            <MagneticCard>
-              <motion.div 
-                animate={{ y: [0, -15, 0] }}
-                transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
-                className="w-40 h-40 rounded-full overflow-hidden shadow-2xl border-4 border-background"
-              >
-                <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
-              </motion.div>
-            </MagneticCard>
+            <motion.div
+              animate={{ y: [0, -15, 0] }}
+              transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
+              className="w-40 h-40 rounded-full overflow-hidden shadow-2xl border-4 border-background"
+            >
+              <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
+            </motion.div>
           </motion.div>
         </div>
       </section>
@@ -248,7 +346,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
           </div>
 
           <div className="relative">
-            <InteractiveMap />
+            <InteractiveMap provinceCount={provinceCount} recentTripName={recentTripName} />
           </div>
         </div>
       </motion.section>
@@ -273,7 +371,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
               </div>
               <div className="relative z-10">
                 <div className="text-4xl font-bold text-on-surface font-tech tracking-tight drop-shadow-sm group-hover:text-cyan-400 group-hover:drop-shadow-[0_0_15px_rgba(34,211,238,0.6)] transition-all duration-500 transform group-hover:translate-x-2">
-                  <AnimatedCounter value={parseInt(m.value)} />
+                  <AnimatedCounter value={Number(m.value) || 0} />
                 </div>
                 <div className="text-[10px] text-secondary font-tech uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100 group-hover:text-cyan-100 transition-all duration-300 transform group-hover:translate-x-1">{m.label}</div>
               </div>
@@ -302,9 +400,10 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {displayList.slice(0, 3).map((c, i) => (
-            <MagneticCard 
+            <MagneticCard
               key={`${c.id}-${i}`}
               onClick={() => navigate(`/mission-detail/${c.id}`)}
+              attractOnProximity
               className="group relative rounded-2xl overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/[0.08] hover:border-primary/40 hover:shadow-[0_0_50px_rgba(233,195,73,0.15)] transition-all duration-500 cursor-pointer h-full"
             >
               <div className="absolute top-0 left-0 w-full h-[2px] bg-primary/50 shadow-[0_0_15px_rgba(233,195,73,1)] -translate-y-[10px] group-hover:animate-scan z-50 pointer-events-none opacity-0 group-hover:opacity-100" />

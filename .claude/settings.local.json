@@ -4,7 +4,13 @@
       "Bash(npm list *)",
       "Bash(npm install *)",
       "Bash(npm uninstall *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(yarn *)",
+      "Bash(powershell *)",
+      "Bash(python *)"
     ]
   }
 }
