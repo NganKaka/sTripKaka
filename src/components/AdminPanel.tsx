@@ -415,11 +415,9 @@ function Autocomplete({
 function GalleryNodesInput({
   nodes,
   onChange,
-  locationId,
 }: {
   nodes: GalleryNode[];
   onChange: (updater: (nodes: GalleryNode[]) => GalleryNode[]) => void;
-  locationId: string;
 }) {
   const updateNode = (uid: string, patch: Partial<GalleryNode>) => {
     onChange(currentNodes => currentNodes.map(node => node.uid === uid ? { ...node, ...patch } : node));
@@ -528,7 +526,6 @@ function GalleryNodesInput({
                       <SingleFileUpload
                         value={image}
                         onChange={value => updateNodeImage(node.uid, imageIndex, value)}
-                        locationId={locationId}
                       />
                     </Field>
                   </div>
@@ -572,12 +569,10 @@ function SingleFileUpload({
   value,
   onChange,
   accept = 'image/*',
-  locationId,
 }: {
   value: string;
   onChange: (url: string) => void;
   accept?: string;
-  locationId: string;
 }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -588,9 +583,8 @@ function SingleFileUpload({
     setUploading(true);
     try {
       const ext = file.name.split('.').pop()?.toLowerCase() || (isVideo ? 'mp4' : 'jpg');
-      const base = (locationId || 'location').replace(/[^a-z0-9_-]/gi, '_');
       const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const newFilename = `${base}_${uniqueSuffix}.${ext}`;
+      const newFilename = `${uniqueSuffix}.${ext}`;
       const fd = new FormData();
       fd.append('file', new File([file], newFilename, { type: file.type }));
       const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
@@ -687,11 +681,6 @@ function SingleFileUpload({
                 <p className="text-xs font-body text-secondary/50 text-center px-4 transition-colors hover:text-secondary/70">
                   <span className="text-primary font-semibold">Click to browse</span> or drag file here
                 </p>
-                {locationId && (
-                  <p className="text-[9px] font-tech text-secondary/30 uppercase tracking-widest">
-                    → {locationId}_n.{isVideo ? 'mp4' : 'jpg/png'}
-                  </p>
-                )}
               </>
             )}
           </motion.div>
@@ -1267,7 +1256,6 @@ export default function AdminPanel() {
                   <SingleFileUpload
                     value={form.img}
                     onChange={v => setForm(f => ({ ...f, img: v }))}
-                    locationId={form.id}
                   />
                 </Field>
 
@@ -1276,7 +1264,6 @@ export default function AdminPanel() {
                     value={form.hero_video}
                     onChange={v => setForm(f => ({ ...f, hero_video: v }))}
                     accept="video/*"
-                    locationId={form.id}
                   />
                 </Field>
 
@@ -1296,7 +1283,6 @@ export default function AdminPanel() {
                               next[index] = v;
                               return { ...f, featured_images: next };
                             })}
-                            locationId={form.id}
                           />
                         </Field>
                       </div>
@@ -1308,7 +1294,6 @@ export default function AdminPanel() {
                   <SingleFileUpload
                     value={form.hero_poster}
                     onChange={v => setForm(f => ({ ...f, hero_poster: v }))}
-                    locationId={form.id}
                   />
                 </Field>
               </div>
@@ -1346,7 +1331,6 @@ export default function AdminPanel() {
                     const gallery_nodes = updater(f.gallery_nodes);
                     return { ...f, gallery_nodes, gallery_images: flattenNodeImages(gallery_nodes) };
                   })}
-                  locationId={form.id}
                 />
               </div>
 
