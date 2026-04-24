@@ -419,16 +419,16 @@ function GalleryNodesInput({
   getNextIndex,
 }: {
   nodes: GalleryNode[];
-  onChange: (nodes: GalleryNode[]) => void;
+  onChange: (updater: (nodes: GalleryNode[]) => GalleryNode[]) => void;
   locationId: string;
   getNextIndex: () => number;
 }) {
   const updateNode = (uid: string, patch: Partial<GalleryNode>) => {
-    onChange(nodes.map(node => node.uid === uid ? { ...node, ...patch } : node));
+    onChange(currentNodes => currentNodes.map(node => node.uid === uid ? { ...node, ...patch } : node));
   };
 
   const updateNodeImage = (nodeUid: string, imageIndex: number, value: string) => {
-    onChange(nodes.map(node => {
+    onChange(currentNodes => currentNodes.map(node => {
       if (node.uid !== nodeUid) return node;
       const images: [string, string, string] = [...node.images] as [string, string, string];
       images[imageIndex] = value;
@@ -436,14 +436,16 @@ function GalleryNodesInput({
     }));
   };
 
-  const addNode = () => onChange([...nodes, createEmptyNode()]);
-  const deleteNode = (index: number) => onChange(nodes.filter((_, i) => i !== index));
+  const addNode = () => onChange(currentNodes => [...currentNodes, createEmptyNode()]);
+  const deleteNode = (index: number) => onChange(currentNodes => currentNodes.filter((_, i) => i !== index));
   const moveNode = (index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
     if (nextIndex < 0 || nextIndex >= nodes.length) return;
-    const nextNodes = [...nodes];
-    [nextNodes[index], nextNodes[nextIndex]] = [nextNodes[nextIndex], nextNodes[index]];
-    onChange(nextNodes);
+    onChange(currentNodes => {
+      const nextNodes = [...currentNodes];
+      [nextNodes[index], nextNodes[nextIndex]] = [nextNodes[nextIndex], nextNodes[index]];
+      return nextNodes;
+    });
   };
 
   return (
@@ -1354,7 +1356,10 @@ export default function AdminPanel() {
                 </h2>
                 <GalleryNodesInput
                   nodes={form.gallery_nodes}
-                  onChange={nodes => setForm(f => ({ ...f, gallery_nodes: nodes, gallery_images: flattenNodeImages(nodes) }))}
+                  onChange={updater => setForm(f => {
+                    const gallery_nodes = updater(f.gallery_nodes);
+                    return { ...f, gallery_nodes, gallery_images: flattenNodeImages(gallery_nodes) };
+                  })}
                   locationId={form.id}
                   getNextIndex={getNextIndex}
                 />
