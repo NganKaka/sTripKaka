@@ -9,6 +9,9 @@ from datetime import datetime, timezone
 import os
 import shutil
 
+import cloudinary
+import cloudinary.uploader
+
 import models
 import schemas
 from database import engine, get_db
@@ -22,6 +25,19 @@ app = FastAPI(
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+HAS_CLOUDINARY_CONFIG = all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET])
+
+if HAS_CLOUDINARY_CONFIG:
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET,
+        secure=True,
+    )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
@@ -523,6 +539,22 @@ def delete_all_notifications(db: Session = Depends(get_db)):
 
 @app.post("/api/upload", tags=["Uploads"])
 async def upload_image(request: Request, file: UploadFile = File(...)):
+    if HAS_CLOUDINARY_CONFIG:
+        try:
+            upload_result = cloudinary.uploader.upload(
+                file.file,
+                resource_type="auto",
+                folder="stripkaka",
+                use_filename=True,
+                unique_filename=True,
+            )
+            secure_url = upload_result.get("secure_url")
+            if not secure_url:
+                raise HTTPException(status_code=500, detail="Cloudinary did not return a URL")
+            return {"url": secure_url}
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Cloudinary upload failed: {exc}")
+
     file_path = os.path.join(UPLOAD_DIR, file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
