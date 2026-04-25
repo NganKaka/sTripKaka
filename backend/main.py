@@ -6,8 +6,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
+import hashlib
 import os
 import shutil
+import time
+from uuid import uuid4
 
 import cloudinary
 import cloudinary.uploader
@@ -535,6 +538,29 @@ def delete_notification(notification_id: int, db: Session = Depends(get_db)):
 def delete_all_notifications(db: Session = Depends(get_db)):
     db.query(models.Notification).delete(synchronize_session=False)
     db.commit()
+
+
+@app.get("/api/uploads/sign", tags=["Uploads"])
+def get_upload_signature(folder: str = "stripkaka"):
+    if not HAS_CLOUDINARY_CONFIG:
+        raise HTTPException(status_code=503, detail="Cloudinary is not configured")
+
+    timestamp = int(time.time())
+    public_id = f"{folder}/{timestamp}_{uuid4().hex[:8]}"
+    params_to_sign = {
+        "folder": folder,
+        "public_id": public_id,
+        "timestamp": timestamp,
+    }
+    signature = cloudinary.utils.api_sign_request(params_to_sign, CLOUDINARY_API_SECRET)
+    return {
+        "cloud_name": CLOUDINARY_CLOUD_NAME,
+        "api_key": CLOUDINARY_API_KEY,
+        "timestamp": timestamp,
+        "folder": folder,
+        "public_id": public_id,
+        "signature": signature,
+    }
 
 
 @app.post("/api/upload", tags=["Uploads"])

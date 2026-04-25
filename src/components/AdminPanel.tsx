@@ -470,15 +470,40 @@ function SingleFileUpload({
   const uploadFile = async (file: File) => {
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || (isVideo ? 'mp4' : 'jpg');
-      const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const newFilename = `${uniqueSuffix}.${ext}`;
-      const fd = new FormData();
-      fd.append('file', new File([file], newFilename, { type: file.type }));
-      const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      onChange(data.url);
+      const signatureRes = await fetch(`${API}/uploads/sign`);
+      if (!signatureRes.ok) {
+        const errText = await signatureRes.text();
+        throw new Error(errText || 'Could not create Cloudinary signature');
+      }
+
+      const signData = await signatureRes.json();
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('api_key', signData.api_key);
+      formData.append('timestamp', String(signData.timestamp));
+      formData.append('signature', signData.signature);
+      formData.append('folder', signData.folder);
+      formData.append('public_id', signData.public_id);
+      formData.append('resource_type', 'auto');
+
+      const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${signData.cloud_name}/auto/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!cloudinaryRes.ok) {
+        const errText = await cloudinaryRes.text();
+        throw new Error(errText || 'Cloudinary upload failed');
+      }
+
+      const uploadData = await cloudinaryRes.json();
+      if (!uploadData?.secure_url) {
+        throw new Error('Cloudinary did not return secure_url');
+      }
+      onChange(uploadData.secure_url);
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
