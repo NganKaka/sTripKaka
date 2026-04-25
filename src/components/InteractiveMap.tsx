@@ -79,9 +79,10 @@ const sortByVisitedDateDesc = (a: DbLocation, b: DbLocation) => {
 interface InteractiveMapProps {
   provinceCount: number;
   recentTripName: string;
+  onOpenExpeditionLog: (locationId: string) => void;
 }
 
-export default function InteractiveMap({ provinceCount, recentTripName }: InteractiveMapProps) {
+export default function InteractiveMap({ provinceCount, recentTripName, onOpenExpeditionLog }: InteractiveMapProps) {
 // Build a circle polygon (approx) from a center + radius
 function createCircleGeoJSON(center: [number, number], radiusKm: number, steps = 64): GeoJSON.Feature {
   const [lng, lat] = center;
@@ -215,15 +216,22 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
                 </div>
                 <h4 style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:15px;color:#e1e2e7;margin:0 0 6px;">${loc.name}</h4>
                 <p style="font-family:'Manrope',serif;font-size:11px;line-height:1.5;color:rgba(187,201,208,0.7);margin:0 0 12px;">${loc.desc}</p>
-                <a href="#/mission-detail/${loc.id}"
-                   onclick="window.location.hash='#/mission-detail/${loc.id}'; window.location.reload();"
-                   style="display:block;text-align:center;background:${color};color:#000;padding:8px;border-radius:6px;font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:800;text-decoration:none;letter-spacing:0.1em;transition:all 0.3s;box-shadow:0 10px 20px -5px ${color}66;"
+                <button type="button"
+                   data-location-id="${loc.id}"
+                   style="display:block;width:100%;text-align:center;background:${color};color:#000;padding:8px;border:none;border-radius:6px;font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:800;text-decoration:none;letter-spacing:0.1em;transition:all 0.3s;box-shadow:0 10px 20px -5px ${color}66;cursor:pointer;"
                    onmouseover="this.style.opacity='0.8';this.style.transform='translateY(-1px)'"
                    onmouseout="this.style.opacity='1';this.style.transform='translateY(0)'">
                   OPEN EXPEDITION LOG
-                </a>
+                </button>
               </div>
             </div>`);
+
+        popup.on('open', () => {
+          const popupEl = popup.getElement();
+          const button = popupEl?.querySelector<HTMLButtonElement>(`button[data-location-id="${loc.id}"]`);
+          if (!button) return;
+          button.onclick = () => onOpenExpeditionLog(loc.id);
+        });
 
         new mapboxgl.Marker({ element: markerEl }).setLngLat(loc.coords).setPopup(popup).addTo(m);
       });

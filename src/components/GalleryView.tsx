@@ -38,6 +38,37 @@ interface LocationResponse {
 }
 
 const normalizeNodeImages = (images: string[] = []): [string, string, string] => [images[0] || '', images[1] || '', images[2] || ''];
+
+const BANNED_REVIEW_WORDS = [
+  'cặc', 'cc', 'lồn', 'loz', 'lz', 'l', 'ngu',
+  'địt', 'dit', 'dm', 'dmm', 'vcl', 'vl', 'ml', 'óc chó', 'súc vật', 'đb', 'đéo',
+];
+
+const normalizeVietnameseText = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+
+const maskBannedWords = (comment: string) => {
+  if (!comment) return comment;
+
+  const bannedSet = new Set(
+    BANNED_REVIEW_WORDS
+      .map((word) => normalizeVietnameseText(word.trim()))
+      .filter(Boolean),
+  );
+
+  return comment.replace(/\S+/g, (token) => {
+    const normalizedToken = normalizeVietnameseText(token).replace(/[^a-z0-9]/g, '');
+    if (!normalizedToken) return token;
+    if (normalizedToken === 'l' || bannedSet.has(normalizedToken)) return '***';
+    return token;
+  });
+};
+
 const normalizeNode = (node: any): GalleryNode => ({
   title: node?.title || '',
   description: node?.description || '',
@@ -97,6 +128,38 @@ function CircuitNode({ icon: Icon }: { icon: any }) {
     >
       <div className="-rotate-45"><Icon size={20} /></div>
     </motion.div>
+  );
+}
+
+type FadeInImageProps = {
+  src: string;
+  alt: string;
+  className: string;
+  loading?: 'eager' | 'lazy';
+  decoding?: 'sync' | 'async' | 'auto';
+  fetchPriority?: 'high' | 'low' | 'auto';
+};
+
+function FadeInImage({ src, alt, className, loading = 'lazy', decoding = 'async', fetchPriority }: FadeInImageProps) {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(false);
+  }, [src]);
+
+  return (
+    <span className={`block transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      <img
+        src={src}
+        alt={alt}
+        loading={loading}
+        decoding={decoding}
+        fetchPriority={fetchPriority}
+        onLoad={() => setIsLoaded(true)}
+        onError={() => setIsLoaded(true)}
+        className={className}
+      />
+    </span>
   );
 }
 
@@ -348,7 +411,13 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
       onClick={() => openImageModal(src, alt)}
       className="glass-card rounded-xl p-2 ghost-border overflow-hidden group relative w-full text-left cursor-pointer hover:shadow-[0_0_24px_rgba(34,211,238,0.16)] hover:border-cyan-400/30 transition-all"
     >
-      <img src={src} alt={alt} className={`w-full ${heightClass} object-cover rounded-lg transition-transform duration-500 group-hover:scale-[1.04]`} />
+      <FadeInImage
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className={`w-full ${heightClass} object-cover rounded-lg transition-transform duration-500 group-hover:scale-[1.04]`}
+      />
       <div className="absolute inset-2 rounded-lg bg-gradient-to-t from-background/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
       <div className="absolute bottom-5 right-5 px-3 py-1.5 rounded-full bg-background/75 border border-white/10 text-[10px] font-tech uppercase tracking-[0.2em] text-cyan-200 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300 pointer-events-none backdrop-blur-md">
         View
@@ -387,9 +456,12 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
 
       <section className="relative rounded-2xl overflow-hidden min-h-[600px] flex items-end pb-16 px-8 md:px-16 glass-card ghost-border ambient-shadow group">
         {heroImg && (
-          <img
+          <FadeInImage
             src={heroImg}
             alt={heroLocationName}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
             className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-60 transition-transform duration-700 group-hover:scale-105"
           />
         )}
@@ -530,7 +602,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
                       </div>
                       <span className="text-secondary/60 text-[11px] font-tech tracking-wider">{formatReviewDate(review.created_at)}</span>
                     </div>
-                    <p className="text-secondary/90 text-sm leading-relaxed">{review.comment}</p>
+                    <p className="text-secondary/90 text-sm leading-relaxed">{maskBannedWords(review.comment)}</p>
                   </div>
                 ))}
                 {isReviewListExpandable && (
@@ -567,7 +639,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
                 <ArrowLeft size={18} className="rotate-45" />
               </button>
               <div className="overflow-hidden rounded-[1.25rem]">
-                <img src={activeImage} alt={activeImageAlt} className="max-h-[80vh] w-full object-contain bg-black/20" />
+                <FadeInImage src={activeImage} alt={activeImageAlt} loading="eager" decoding="async" className="max-h-[80vh] w-full object-contain bg-black/20" />
               </div>
             </motion.div>
           </motion.div>

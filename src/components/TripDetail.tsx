@@ -210,6 +210,38 @@ function AnimatedNumber({ target }: { target: number }) {
   return <span ref={ref}>{display}</span>;
 }
 
+type FadeInImageProps = {
+  src: string;
+  alt: string;
+  className: string;
+  loading?: 'eager' | 'lazy';
+  decoding?: 'sync' | 'async' | 'auto';
+  fetchPriority?: 'high' | 'low' | 'auto';
+};
+
+function FadeInImage({ src, alt, className, loading = 'lazy', decoding = 'async', fetchPriority }: FadeInImageProps) {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(false);
+  }, [src]);
+
+  return (
+    <span className={`block transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      <img
+        src={src}
+        alt={alt}
+        loading={loading}
+        decoding={decoding}
+        fetchPriority={fetchPriority}
+        onLoad={() => setIsLoaded(true)}
+        onError={() => setIsLoaded(true)}
+        className={className}
+      />
+    </span>
+  );
+}
+
 function FloatingImage({ src, alt, delay = 0, className = '' }: { src: string; alt: string; delay?: number; className?: string }) {
   return (
     <motion.div
@@ -217,9 +249,11 @@ function FloatingImage({ src, alt, delay = 0, className = '' }: { src: string; a
       transition={{ duration: 4 + delay * 0.5, repeat: Infinity, ease: 'easeInOut', delay }}
       className={`rounded-xl overflow-hidden group ${className}`}
     >
-      <img
+      <FadeInImage
         src={src}
         alt={alt}
+        loading="lazy"
+        decoding="async"
         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
       />
     </motion.div>
@@ -297,13 +331,20 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
                 <source src={tripData.video} type="video/mp4" />
               </motion.video>
             ) : (
-              <motion.img
+              <motion.div
                 initial={{ scale: 1.15 }} animate={{ scale: 1 }}
                 transition={{ duration: 4, ease: 'easeOut', delay: 1.5 }}
-                src={tripData.poster}
-                className="w-full h-full object-cover opacity-80"
-                alt={tripData.title}
-              />
+                className="w-full h-full"
+              >
+                <FadeInImage
+                  src={tripData.poster}
+                  alt={tripData.title}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
+                  className="w-full h-full object-cover opacity-80"
+                />
+              </motion.div>
             )}
           </motion.div>
 
@@ -380,9 +421,11 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
                     transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
                     className="col-span-2 row-span-2 rounded-xl overflow-hidden relative group"
                   >
-                    <img
+                    <FadeInImage
                       src={heroImg}
                       alt={`${tripData.title} - main`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent opacity-60" />

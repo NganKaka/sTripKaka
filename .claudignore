@@ -4,6 +4,13 @@ bower_components/
 venv/
 .venv/
 env/
+backend/venv/
+
+# Claude worktrees
+.claude/worktrees/
+
+# Large static assets (skip when scanning code)
+public/
 
 # Build and output
 dist/

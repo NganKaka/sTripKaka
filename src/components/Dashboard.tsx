@@ -236,6 +236,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard({ setActiveTab }: DashboardProps) {
   const navigate = useNavigate();
+  const mapSectionRef = useRef<HTMLElement | null>(null);
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 1000], [0, -150]);
   const y2 = useTransform(scrollY, [0, 1000], [0, -250]);
@@ -270,7 +271,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
         <div className="space-y-6">
           <span className="text-primary font-tech tracking-[0.2em] font-bold text-sm">ALL CHAPTERS</span>
           <h1 className="font-headline text-5xl md:text-7xl font-bold tracking-tighter leading-tight text-on-surface">
-            The Ngan's<br /><Typewriter words={["sTripKaka", "Explorer", "Nomad", "Observer"]} />
+            The Ngan's Trips
           </h1>
           <p className="text-secondary text-lg md:text-xl max-w-lg leading-relaxed font-body">
             Người ta đi xa không phải để tìm nơi trốn chạy, mà để tìm một thế giới quan rộng lớn hơn.
@@ -283,7 +284,10 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
               <span className="relative z-10">Explore Chapters</span>
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             </button>
-            <button className="glass-card text-on-surface px-8 py-4 rounded-xl text-sm font-bold tracking-wide hover:bg-white/10 transition-all cursor-pointer">
+            <button
+              onClick={() => mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="glass-card text-on-surface px-8 py-4 rounded-xl text-sm font-bold tracking-wide border border-cyan-400/30 hover:border-cyan-300/70 hover:bg-cyan-400/10 hover:text-cyan-200 hover:scale-105 hover:shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-all duration-300 cursor-pointer"
+            >
               View Map
             </button>
           </div>
@@ -323,7 +327,8 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
       </section>
 
       {/* Cartography of Memories Map Block */}
-      <motion.section 
+      <motion.section
+        ref={mapSectionRef}
         initial={{ opacity: 0, y: 50 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-100px" }}
@@ -345,7 +350,11 @@ Một sự tái hiện trực quan về những hành trình đã qua. Mỗi đi
           </div>
 
           <div className="relative">
-            <InteractiveMap provinceCount={provinceCount} recentTripName={recentTripName} />
+            <InteractiveMap
+              provinceCount={provinceCount}
+              recentTripName={recentTripName}
+              onOpenExpeditionLog={(locationId) => navigate(`/mission-detail/${locationId}`)}
+            />
           </div>
         </div>
       </motion.section>

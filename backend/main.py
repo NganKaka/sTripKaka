@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Request
+﻿from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Request
 from urllib.parse import urlparse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -8,8 +8,10 @@ from typing import Dict, List, Optional
 from datetime import datetime, timezone
 import hashlib
 import os
+import re
 import shutil
 import time
+import unicodedata
 from uuid import uuid4
 
 import cloudinary
@@ -42,7 +44,7 @@ if HAS_CLOUDINARY_CONFIG:
         secure=True,
     )
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
+# â”€â”€ CORS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://s-trip-kaka.vercel.app", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3001", "http://localhost:3000"],
@@ -243,11 +245,120 @@ def _normalize_nickname(nickname: Optional[str]) -> str:
     return normalized or "Guest"
 
 
+BANNED_COMMENT_WORDS = {
+    "cac",
+    "cc",
+    "cl",
+    "cmm",
+    "cut",
+    "db",
+    "deo",
+    "dit",
+    "ditme",
+    "dm",
+    "dmm",
+    "duma",
+    "duima",
+    "duime",
+    "lon",
+    "loz",
+    "lz",
+    "ml",
+    "ngu",
+    "occho",
+    "sucvat",
+    "vl",
+    "vloz",
+    "vcl",
+}
+
+BANNED_COMMENT_PHRASES = {
+    "cac lon",
+    "con cho",
+    "dit me",
+    "dit me may",
+    "dit may",
+    "do ngu",
+    "do cho",
+    "du ma",
+    "du me",
+    "mat day",
+    "me may",
+    "oc cho",
+    "suc vat",
+    "vo hoc",
+    "vo van hoa",
+}
+
+
+def _strip_vietnamese_marks(value: str) -> str:
+    normalized = unicodedata.normalize("NFD", value)
+    without_marks = "".join(char for char in normalized if unicodedata.category(char) != "Mn")
+    return without_marks.replace("Ä‘", "d").replace("Ä", "D")
+
+
+TOKEN_SPLIT_RE = re.compile(r"(\w+)", re.UNICODE)
+
+
+def _normalize_comment_token(value: str) -> str:
+    lowered = _strip_vietnamese_marks(value.lower())
+    return re.sub(r"[^a-z0-9]+", "", lowered)
+
+
+def _mask_banned_comment_words(comment: str) -> str:
+    masked_parts: List[str] = []
+
+    for part in TOKEN_SPLIT_RE.split(comment):
+        if not part:
+            continue
+        if TOKEN_SPLIT_RE.fullmatch(part):
+            normalized = _normalize_comment_token(part)
+            if normalized in BANNED_COMMENT_WORDS or normalized == "l":
+                masked_parts.append("***")
+                continue
+        masked_parts.append(part)
+
+    masked_comment = "".join(masked_parts)
+
+    for phrase in sorted(BANNED_COMMENT_PHRASES, key=len, reverse=True):
+        pattern = re.compile(re.escape(phrase).replace(r"\ ", r"\s+"), re.IGNORECASE)
+
+        def replace_phrase(match: re.Match[str]) -> str:
+            original = match.group(0)
+            normalized = _normalize_comment_token(original.replace(" ", ""))
+            compact_phrase = _normalize_comment_token(phrase.replace(" ", ""))
+            return "***" if normalized == compact_phrase else original
+
+        masked_comment = pattern.sub(replace_phrase, masked_comment)
+
+    return masked_comment
+
+
 def _normalize_comment_or_fail(comment: str) -> str:
     normalized = (comment or "").strip()
     if not normalized:
         raise HTTPException(status_code=400, detail="Comment cannot be empty")
-    return normalized
+    return _mask_banned_comment_words(normalized)
+
+
+def _sanitize_review_comment(comment: str) -> str:
+    return _mask_banned_comment_words((comment or "").strip())
+
+
+def _sanitize_review(review: models.Review) -> dict:
+    return {
+        "id": int(review.id),
+        "location_id": review.location_id,
+        "stars": int(review.stars),
+        "nickname": review.nickname,
+        "comment": _sanitize_review_comment(review.comment or ""),
+        "created_at": review.created_at,
+    }
+
+
+def _sanitize_reviews(reviews: List[models.Review]) -> List[dict]:
+    return [_sanitize_review(review) for review in reviews]
+
 
 
 def _validate_stars(stars: int) -> int:
@@ -268,7 +379,7 @@ def _build_location_reviews_response(db: Session, location_id: str):
     return {
         "average_stars": average_stars,
         "total_reviews": total_reviews,
-        "reviews": reviews,
+        "reviews": _sanitize_reviews(reviews),
     }
 
 

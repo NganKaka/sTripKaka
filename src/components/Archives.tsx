@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, Star, ArrowRight, Loader2 } from 'lucide-react';
+import { Search, ChevronDown, Star, ArrowRight, Loader2 } from 'lucide-react';
 import { MagneticCard } from './Dashboard';
 import { apiUrl } from '../lib/api';
 
@@ -53,6 +53,8 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const formatVisitedDate = (value: string) => {
     const date = new Date(value);
@@ -106,6 +108,17 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
     return () => window.clearTimeout(searchDebounceId);
   }, [searchQuery, activeFilter]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const filtered = items;
 
   return (
@@ -115,38 +128,70 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
           <h1 className="font-headline text-4xl md:text-6xl font-extrabold tracking-tight text-on-surface">The Archives</h1>
           <p className="text-secondary text-lg font-body">A curated collection of past expeditions.</p>
         </div>
-        <div className="w-full md:w-96 relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary group-focus-within:text-primary transition-colors" size={20} />
-          <input 
-            type="text" 
-            placeholder="Search memories, locations..." 
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setItems([]);
-              setHasMore(false);
-            }}
-            className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:border-primary/50 transition-all font-body text-sm"
-          />
+        <div className="w-full md:w-96 flex items-center gap-3">
+          <span className="font-headline text-[10px] uppercase tracking-widest text-secondary/60">Search:</span>
+          <div className="relative group flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary transition-colors group-hover:text-cyan-200 group-focus-within:text-cyan-200" size={20} />
+            <input
+              type="text"
+              placeholder="Search memories, locations..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setItems([]);
+                setHasMore(false);
+              }}
+              className="w-full rounded-3xl border border-cyan-200/25 bg-cyan-950/10 py-4 pl-12 pr-4 font-body text-sm text-cyan-50/95 backdrop-blur-sm transition-all hover:border-cyan-200/50 hover:bg-cyan-900/15 hover:shadow-[0_0_24px_rgba(34,211,238,0.14)] focus:outline-none focus:border-cyan-200/65 focus:bg-cyan-900/20"
+            />
+          </div>
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex items-center gap-4">
         <span className="font-headline text-[10px] uppercase tracking-widest text-secondary/50">Filters:</span>
-        {ARCHIVE_FILTERS.map(f => (
-          <button 
-            key={f} 
-            onClick={() => {
-              setActiveFilter(f);
-              setItems([]);
-              setHasMore(false);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full glass-card transition-all cursor-pointer ${activeFilter === f ? 'bg-primary/20 border-primary text-primary' : 'hover:bg-white/10'}`}
+        <div ref={filterDropdownRef} className="relative w-full max-w-xs">
+          <button
+            type="button"
+            onClick={() => setIsFilterOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between rounded-3xl border border-cyan-200/30 bg-cyan-950/15 px-4 py-3 text-[10px] font-bold tracking-widest text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.10)] backdrop-blur-sm transition-all hover:border-cyan-200/60 hover:bg-cyan-900/20 hover:shadow-[0_0_24px_rgba(34,211,238,0.18)] focus:outline-none focus:border-cyan-200/70"
           >
-            <span className="text-[10px] font-bold tracking-widest">{f}</span>
-            {activeFilter === f && <X size={14} />}
+            <span>{activeFilter}</span>
+            <ChevronDown
+              size={16}
+              className={`text-cyan-200 transition-transform duration-300 ${isFilterOpen ? 'rotate-180' : ''}`}
+            />
           </button>
-        ))}
+
+          <AnimatePresence>
+            {isFilterOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -12, scale: 0.96 }}
+                animate={{ opacity: 1, y: 8, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-3xl border border-cyan-200/25 bg-slate-950/55 p-2 shadow-[0_18px_45px_rgba(15,23,42,0.45)] backdrop-blur-md"
+              >
+                <div className="space-y-1">
+                  {ARCHIVE_FILTERS.map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => {
+                        setActiveFilter(filter);
+                        setItems([]);
+                        setHasMore(false);
+                        setIsFilterOpen(false);
+                      }}
+                      className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-[10px] font-bold tracking-widest transition-all ${activeFilter === filter ? 'bg-cyan-400/15 text-cyan-100' : 'text-cyan-50/85 hover:bg-cyan-400/10 hover:text-cyan-100'}`}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {loading ? (
