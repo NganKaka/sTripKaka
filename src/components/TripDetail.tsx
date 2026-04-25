@@ -2,6 +2,8 @@ import { motion, useScroll, useSpring, useInView } from 'framer-motion';
 import { MapPin, Sun, Camera, ArrowRight, Quote, ArrowLeft } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { apiUrl } from '../lib/api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface TripDetailProps {
   setActiveTab: (tab: string) => void;
@@ -78,6 +80,19 @@ const TRAVEL_QUOTES = [
 ];
 
 const getRandomQuote = () => TRAVEL_QUOTES[Math.floor(Math.random() * TRAVEL_QUOTES.length)];
+
+const markdownComponents = {
+  p: ({ children }: any) => <p className="text-lg md:text-xl font-medium text-on-surface leading-loose mb-5 last:mb-0 font-body drop-shadow-sm">{children}</p>,
+  h1: ({ children }: any) => <h1 className="font-headline text-3xl md:text-4xl font-bold text-on-surface mb-4">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="font-headline text-2xl md:text-3xl font-bold text-on-surface mb-4">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="font-headline text-xl md:text-2xl font-bold text-on-surface mb-3">{children}</h3>,
+  ul: ({ children }: any) => <ul className="list-disc pl-6 mb-5 space-y-2 text-lg md:text-xl text-on-surface/90">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-5 space-y-2 text-lg md:text-xl text-on-surface/90">{children}</ol>,
+  li: ({ children }: any) => <li>{children}</li>,
+  blockquote: ({ children }: any) => <blockquote className="border-l-2 border-primary/50 pl-4 italic text-secondary/90 mb-5">{children}</blockquote>,
+  strong: ({ children }: any) => <strong className="text-on-surface font-semibold">{children}</strong>,
+  em: ({ children }: any) => <em className="italic">{children}</em>,
+};
 
 const getProvince = (id: string, name: string) => PROVINCE_BY_LOCATION[id] || name;
 const getRegion = (province: string) => REGION_BY_PROVINCE[province] || 'Unknown';
@@ -329,9 +344,11 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
                 <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em] block">Story Log</span>
                 <h2 className="font-headline text-3xl md:text-4xl font-bold tracking-tight text-on-surface">{tripData.storyTitle}</h2>
               </div>
-              <p className="text-lg md:text-xl font-medium text-on-surface leading-loose first-letter:text-6xl first-letter:font-headline first-letter:text-primary first-letter:float-left first-letter:mr-3 first-letter:mt-2 font-body drop-shadow-sm">
-                {tripData.desc1}
-              </p>
+              <div className="prose prose-invert max-w-none first-letter:[all:unset]">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {tripData.desc1}
+                </ReactMarkdown>
+              </div>
               {tripData.desc2 && (
                 <p className="text-secondary/80 font-body">{tripData.desc2}</p>
               )}
