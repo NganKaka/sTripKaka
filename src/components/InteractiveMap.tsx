@@ -67,13 +67,13 @@ const buildRouteGeoJSON = (locations: LocationData[]): GeoJSON.FeatureCollection
   ],
 });
 
-const sortByVisitedDateDesc = (a: DbLocation, b: DbLocation) => {
-  const aTs = Date.parse(a.visited_date || '');
-  const bTs = Date.parse(b.visited_date || '');
-  if (!Number.isNaN(aTs) && !Number.isNaN(bTs)) return bTs - aTs;
-  if (!Number.isNaN(aTs)) return -1;
-  if (!Number.isNaN(bTs)) return 1;
-  return b.id.localeCompare(a.id);
+const sortByLatitudeAsc = (a: DbLocation, b: DbLocation) => {
+  const aLat = Number(a.lat);
+  const bLat = Number(b.lat);
+  if (!Number.isNaN(aLat) && !Number.isNaN(bLat)) return aLat - bLat;
+  if (!Number.isNaN(aLat)) return -1;
+  if (!Number.isNaN(bLat)) return 1;
+  return a.id.localeCompare(b.id);
 };
 
 interface InteractiveMapProps {
@@ -108,7 +108,7 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
         const mapped = Array.isArray(data)
           ? data
               .slice()
-              .sort(sortByVisitedDateDesc)
+              .sort(sortByLatitudeAsc)
               .map(toMapLocation)
               .filter((item): item is LocationData => !!item)
           : [];
