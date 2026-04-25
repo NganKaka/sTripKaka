@@ -457,12 +457,16 @@ function ChapterSelector({ value, onChange, takenChapters }: { value: string; on
   );
 }
 
-function Autocomplete({ value, onChange, onSelect }: { value: string; onChange: (v: string) => void; onSelect: (place: { name: string; lat: string; lng: string }) => void; }) {
+function Autocomplete({ value, onChange, onSelect, excludedNames = [] }: { value: string; onChange: (v: string) => void; onSelect: (place: { name: string; lat: string; lng: string }) => void; excludedNames?: string[]; }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
-  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const filtered = VN_PLACES.filter(p => normalize(p.name).includes(normalize(query)));
+  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+  const excludedSet = new Set(excludedNames.map(normalize));
+  const filtered = VN_PLACES.filter(p => {
+    const normalizedName = normalize(p.name);
+    return normalizedName.includes(normalize(query)) && (normalizedName === normalize(value) || !excludedSet.has(normalizedName));
+  });
 
   useEffect(() => { setQuery(value); }, [value]);
   useEffect(() => {
@@ -473,7 +477,7 @@ function Autocomplete({ value, onChange, onSelect }: { value: string; onChange: 
 
   return (
     <div ref={ref} className="relative">
-      <input className={inputCls} placeholder="e.g. Hội An, Đà Lạt…" value={query} onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} />
+      <input className={inputCls} placeholder="e.g. Đà Nẵng, Bà Rịa - Vũng Tàu…" value={query} onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} />
       <AnimatePresence>
         {open && filtered.length > 0 && (
           <motion.ul initial={{ opacity: 0, y: -10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.98 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="absolute z-[100] top-full mt-2 w-full rounded-xl shadow-[0_12px_48px_rgba(0,0,0,0.8)] border border-white/10 overflow-y-auto custom-scrollbar py-2" style={{ maxHeight: '320px', background: 'rgba(15, 23, 42, 0.98)', backdropFilter: 'blur(20px)' }}>
@@ -1032,6 +1036,11 @@ export default function AdminPanel() {
     setForm(f => ({ ...f, name: place.name, id: editing ? f.id : newId, lat: place.lat, lng: place.lng }));
   };
 
+  const takenDestinationNames = useMemo(
+    () => locations.filter(loc => loc.id !== editing).map(loc => loc.name),
+    [locations, editing]
+  );
+
   const takenChapters = useMemo(
     () => locations.filter(loc => loc.id !== editing && !loc.is_archived).map(loc => loc.chapter),
     [locations, editing]
@@ -1291,7 +1300,7 @@ export default function AdminPanel() {
             <div className="space-y-5">
               <div className="glass-card rounded-xl p-6 ghost-border space-y-5">
                 <h2 className="font-headline font-bold text-on-surface text-base flex items-center gap-2"><MapPin size={16} className="text-primary" /> Basic Info</h2>
-                <Field label="Destination Name" icon={MapPin}><Autocomplete value={form.name} onChange={handleNameChange} onSelect={handlePlaceSelect} /></Field>
+                <Field label="Destination Name" icon={MapPin}><Autocomplete value={form.name} onChange={handleNameChange} onSelect={handlePlaceSelect} excludedNames={takenDestinationNames} /></Field>
                 <Field label="Auto ID (slug)" icon={FileText}><input className={inputCls} value={form.id} onChange={e => setForm(f => ({ ...f, id: e.target.value }))} placeholder="auto-generated" readOnly={!!editing} style={editing ? { opacity: 0.5 } : {}} /></Field>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Chapter" icon={Star}><ChapterSelector value={form.chapter} onChange={handleChapterChange} takenChapters={takenChapters} /></Field>
