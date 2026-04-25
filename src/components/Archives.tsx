@@ -200,7 +200,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
           <p className="text-secondary font-tech text-xs uppercase tracking-widest animate-pulse">Decrypting Records...</p>
         </div>
       ) : (
-        <div className="columns-1 md:columns-2 lg:columns-3 gap-8 perspective-1000">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 perspective-1000 items-start">
           <AnimatePresence>
             {filtered.map((e) => (
               <motion.div
@@ -210,7 +210,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.3 }}
                 key={e.id}
-                className="break-inside-avoid mb-8"
+                className="mb-8"
               >
                 <MagneticCard
                   onClick={() => setActiveTab(`Destinations:${e.id}`)}
@@ -286,7 +286,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
             ))}
 
             {filtered.length === 0 && !loading && (
-              <div className="col-span-full py-20 text-center">
+              <div className="lg:col-span-3 md:col-span-2 col-span-1 py-20 text-center">
                 <p className="text-secondary font-headline uppercase tracking-widest opacity-50">No memories found matching your search</p>
               </div>
             )}
