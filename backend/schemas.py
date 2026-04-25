@@ -25,6 +25,8 @@ class LocationBase(BaseModel):
     full_description: Optional[str] = None
     gallery_images: Optional[List[str]] = None
     gallery_nodes: Optional[List[GalleryNode]] = None
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
 
 
 class LocationCreate(LocationBase):
@@ -47,6 +49,8 @@ class LocationPatch(BaseModel):
     full_description: Optional[str] = None
     gallery_images: Optional[List[str]] = None
     gallery_nodes: Optional[List[GalleryNode]] = None
+    is_archived: Optional[bool] = None
+    archived_at: Optional[datetime] = None
 
 
 class LocationOut(LocationBase):
@@ -55,6 +59,10 @@ class LocationOut(LocationBase):
 
     class Config:
         from_attributes = True
+
+
+class RestoreLocationResponse(BaseModel):
+    location: LocationOut
 
 
 class ReviewCreate(BaseModel):

@@ -24,6 +24,8 @@ class Location(Base):
     full_description = Column(Text, nullable=True)
     gallery_images = Column(ARRAY(String), nullable=True)  # List of image URLs
     gallery_nodes = Column(JSON, nullable=True)            # Structured gallery nodes
+    is_archived = Column(Integer, nullable=False, default=0, index=True)
+    archived_at = Column(DateTime(timezone=True), nullable=True)
 
     reviews = relationship("Review", back_populates="location", cascade="all, delete-orphan")
 

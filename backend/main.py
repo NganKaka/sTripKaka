@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Request
+from urllib.parse import urlparse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Dict, List, Optional
+from datetime import datetime, timezone
 import os
 import shutil
 
@@ -30,18 +32,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Root
-# ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/", tags=["Health"])
 def read_root():
     return {"status": "sTripKaka API running", "version": "1.2.0"}
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Locations
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _normalize_node_images(images: Optional[List[str]]) -> List[str]:
     arr = (images or [])[:3]
@@ -119,13 +114,127 @@ def _get_reviews_aggregate_for_ids(db: Session, location_ids: List[str]) -> Dict
     }
 
 
-def _serialize_location(loc: models.Location, aggregate: Optional[Dict[str, float | int]] = None):
+def _resolve_asset_url(value: Optional[str], request: Optional[Request] = None) -> Optional[str]:
+    if not value:
+        return value
+    if value.startswith("/uploads/"):
+        if request is None:
+            return value
+        return f"{str(request.base_url).rstrip('/')}{value}"
+    parsed = urlparse(value)
+    if parsed.scheme and parsed.netloc and parsed.path.startswith("/uploads/"):
+        if request is None:
+            return value
+        return f"{str(request.base_url).rstrip('/')}{parsed.path}"
+    return value
+
+
+def _resolve_gallery_nodes_asset_urls(gallery_nodes, request: Optional[Request] = None):
+    normalized_nodes = []
+    for node in gallery_nodes or []:
+        if not isinstance(node, dict):
+            normalized_nodes.append(node)
+            continue
+        normalized_nodes.append({
+            **node,
+            "images": [_resolve_asset_url(image, request) for image in _normalize_node_images(node.get("images", []))],
+        })
+    return normalized_nodes
+
+
+def _serialize_location(loc: models.Location, aggregate: Optional[Dict[str, float | int]] = None, request: Optional[Request] = None):
     data = schemas.LocationOut.model_validate(loc).model_dump()
-    data["gallery_nodes"] = _build_gallery_nodes(getattr(loc, "gallery_nodes", None), loc.gallery_images)
-    data["featured_images"] = _normalize_featured_images(getattr(loc, "featured_images", None), getattr(loc, "hero_poster", None))
+    data["img"] = _resolve_asset_url(data.get("img"), request)
+    data["hero_video"] = _resolve_asset_url(data.get("hero_video"), request)
+    data["hero_poster"] = _resolve_asset_url(data.get("hero_poster"), request)
+    data["gallery_images"] = [_resolve_asset_url(image, request) for image in (data.get("gallery_images") or [])]
+    data["gallery_nodes"] = _resolve_gallery_nodes_asset_urls(_build_gallery_nodes(getattr(loc, "gallery_nodes", None), loc.gallery_images), request)
+    data["featured_images"] = [_resolve_asset_url(image, request) for image in _normalize_featured_images(getattr(loc, "featured_images", None), getattr(loc, "hero_poster", None))]
     data["average_stars"] = float((aggregate or {}).get("average_stars", 5.0))
     data["total_reviews"] = int((aggregate or {}).get("total_reviews", 0))
+    data["is_archived"] = bool(getattr(loc, "is_archived", 0))
+    data["archived_at"] = getattr(loc, "archived_at", None)
     return data
+
+
+def _serialize_locations_with_aggregates(db: Session, locations: List[models.Location], request: Optional[Request] = None):
+    aggregates = _get_reviews_aggregate_for_ids(db, [loc.id for loc in locations])
+    return [_serialize_location(loc, aggregates.get(loc.id), request) for loc in locations]
+
+
+def _serialize_location_with_aggregate(db: Session, loc: models.Location, request: Optional[Request] = None):
+    aggregate = _get_reviews_aggregate_for_ids(db, [loc.id]).get(loc.id)
+    return _serialize_location(loc, aggregate, request)
+
+
+def _normalize_search_query(search: Optional[str]) -> Optional[str]:
+    normalized = (search or "").strip()
+    return normalized or None
+
+
+def _parse_include_archived_flag(value: Optional[str | bool]) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _apply_location_filters(query, highlight_type: Optional[str] = None, chapter: Optional[str] = None, search: Optional[str] = None):
+    if highlight_type:
+        query = query.filter(models.Location.highlight_type == highlight_type)
+    if chapter:
+        query = query.filter(models.Location.chapter == chapter)
+    normalized_search = _normalize_search_query(search)
+    if normalized_search:
+        like_term = f"%{normalized_search}%"
+        query = query.filter(
+            models.Location.name.ilike(like_term) |
+            models.Location.short_desc.ilike(like_term) |
+            models.Location.full_description.ilike(like_term)
+        )
+    return query
+
+
+def _filter_archived(query, include_archived: bool):
+    if include_archived:
+        return query
+    return query.filter(models.Location.is_archived == 0)
+
+
+def _ensure_unique_chapter(db: Session, chapter: str, exclude_location_id: Optional[str] = None):
+    query = db.query(models.Location).filter(models.Location.chapter == chapter, models.Location.is_archived == 0)
+    if exclude_location_id:
+        query = query.filter(models.Location.id != exclude_location_id)
+    if query.first():
+        raise HTTPException(status_code=400, detail=f"{chapter} is already assigned to another location")
+
+
+def _ensure_location_exists(db: Session, location_id: str, include_archived: bool = False) -> models.Location:
+    query = db.query(models.Location).filter(models.Location.id == location_id)
+    query = _filter_archived(query, include_archived)
+    location = query.first()
+    if location is None:
+        raise HTTPException(status_code=404, detail="Location not found")
+    return location
+
+
+def _normalize_nickname(nickname: Optional[str]) -> str:
+    normalized = (nickname or "").strip()
+    return normalized or "Guest"
+
+
+def _normalize_comment_or_fail(comment: str) -> str:
+    normalized = (comment or "").strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Comment cannot be empty")
+    return normalized
+
+
+def _validate_stars(stars: int) -> int:
+    if stars < 0 or stars > 5:
+        raise HTTPException(status_code=400, detail="Stars must be between 0 and 5")
+    return stars
 
 
 def _build_location_reviews_response(db: Session, location_id: str):
@@ -180,173 +289,157 @@ def _build_notifications_response(db: Session, limit: int = 30):
     }
 
 
-def _normalize_nickname(nickname: Optional[str]) -> str:
-    normalized = (nickname or "").strip()
-    return normalized or "Guest"
+def _normalize_location_payload(payload: dict, for_patch: bool = False, existing_location: Optional[models.Location] = None) -> dict:
+    normalized = dict(payload)
 
+    if not for_patch or "gallery_nodes" in normalized or "gallery_images" in normalized:
+        gallery_images = normalized.get("gallery_images") if "gallery_images" in normalized else (existing_location.gallery_images if existing_location else None)
+        gallery_nodes = normalized.get("gallery_nodes") if "gallery_nodes" in normalized else (existing_location.gallery_nodes if existing_location else None)
+        normalized["gallery_nodes"] = _build_gallery_nodes(gallery_nodes, gallery_images)
 
-def _normalize_comment_or_fail(comment: str) -> str:
-    normalized = (comment or "").strip()
-    if not normalized:
-        raise HTTPException(status_code=400, detail="Comment cannot be empty")
+    if not for_patch or "featured_images" in normalized or "hero_poster" in normalized:
+        featured_images = normalized.get("featured_images") if "featured_images" in normalized else (getattr(existing_location, "featured_images", None) if existing_location else None)
+        hero_poster = normalized.get("hero_poster") if "hero_poster" in normalized else (getattr(existing_location, "hero_poster", None) if existing_location else None)
+        normalized["featured_images"] = _normalize_featured_images(featured_images, hero_poster)
+
+    if "is_archived" in normalized:
+        normalized["is_archived"] = 1 if bool(normalized["is_archived"]) else 0
+
+    if "archived_at" in normalized and isinstance(normalized["archived_at"], str) and normalized["archived_at"]:
+        normalized["archived_at"] = datetime.fromisoformat(normalized["archived_at"].replace("Z", "+00:00"))
+
+    if "is_archived" in normalized:
+        if normalized["is_archived"] and not normalized.get("archived_at"):
+            normalized["archived_at"] = datetime.now(timezone.utc)
+        if not normalized["is_archived"]:
+            normalized["archived_at"] = None
+
     return normalized
-
-
-def _validate_stars(stars: int) -> int:
-    if stars < 0 or stars > 5:
-        raise HTTPException(status_code=400, detail="Stars must be between 0 and 5")
-    return stars
-
-
-def _ensure_location_exists(db: Session, location_id: str) -> models.Location:
-    location = db.query(models.Location).filter(models.Location.id == location_id).first()
-    if location is None:
-        raise HTTPException(status_code=404, detail="Location not found")
-    return location
-
-
-def _normalize_search_query(search: Optional[str]) -> Optional[str]:
-    normalized = (search or "").strip()
-    return normalized or None
-
-
-def _apply_location_filters(query, highlight_type: Optional[str] = None, chapter: Optional[str] = None, search: Optional[str] = None):
-    if highlight_type:
-        query = query.filter(models.Location.highlight_type == highlight_type)
-    if chapter:
-        query = query.filter(models.Location.chapter == chapter)
-    normalized_search = _normalize_search_query(search)
-    if normalized_search:
-        like_term = f"%{normalized_search}%"
-        query = query.filter(
-            models.Location.name.ilike(like_term) |
-            models.Location.short_desc.ilike(like_term) |
-            models.Location.full_description.ilike(like_term)
-        )
-    return query
-
-
-def _ensure_unique_chapter(db: Session, chapter: str, exclude_location_id: Optional[str] = None):
-    query = db.query(models.Location).filter(models.Location.chapter == chapter)
-    if exclude_location_id:
-        query = query.filter(models.Location.id != exclude_location_id)
-    if query.first():
-        raise HTTPException(status_code=400, detail=f"{chapter} is already assigned to another location")
-
-
-def _serialize_locations_with_aggregates(db: Session, locations: List[models.Location]):
-    aggregates = _get_reviews_aggregate_for_ids(db, [loc.id for loc in locations])
-    return [_serialize_location(loc, aggregates.get(loc.id)) for loc in locations]
-
-
-def _serialize_location_with_aggregate(db: Session, loc: models.Location):
-    aggregate = _get_reviews_aggregate_for_ids(db, [loc.id]).get(loc.id)
-    return _serialize_location(loc, aggregate)
 
 
 @app.get("/api/locations", response_model=List[schemas.LocationOut], tags=["Locations"])
 def get_locations(
+    request: Request,
     skip: int = 0,
     limit: int = 100,
     highlight_type: Optional[str] = None,
     chapter: Optional[str] = None,
     search: Optional[str] = None,
+    include_archived: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    query = _apply_location_filters(db.query(models.Location), highlight_type, chapter, search)
+    include_archived_flag = _parse_include_archived_flag(include_archived)
+    query = _filter_archived(db.query(models.Location), include_archived_flag)
+    query = _apply_location_filters(query, highlight_type, chapter, search)
     locations = query.order_by(models.Location.visited_date.desc()).offset(skip).limit(limit).all()
-    return _serialize_locations_with_aggregates(db, locations)
+    return _serialize_locations_with_aggregates(db, locations, request)
 
 
 @app.get("/api/locations/paginated", response_model=schemas.PaginatedLocations, tags=["Locations"])
 def get_locations_paginated(
+    request: Request,
     skip: int = 0,
     limit: int = 10,
     highlight_type: Optional[str] = None,
     chapter: Optional[str] = None,
     search: Optional[str] = None,
+    include_archived: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    query = _apply_location_filters(db.query(models.Location), highlight_type, chapter, search)
+    include_archived_flag = _parse_include_archived_flag(include_archived)
+    query = _filter_archived(db.query(models.Location), include_archived_flag)
+    query = _apply_location_filters(query, highlight_type, chapter, search)
 
     total = query.count()
     items = query.order_by(models.Location.visited_date.desc()).offset(skip).limit(limit).all()
 
     return {
-        "items": _serialize_locations_with_aggregates(db, items),
+        "items": _serialize_locations_with_aggregates(db, items, request),
         "total": total,
         "has_more": skip + limit < total
     }
 
 
 @app.get("/api/locations/{location_id}", response_model=schemas.LocationOut, tags=["Locations"])
-def get_location_by_id(location_id: str, db: Session = Depends(get_db)):
-    location = _ensure_location_exists(db, location_id)
-    return _serialize_location_with_aggregate(db, location)
+def get_location_by_id(request: Request, location_id: str, include_archived: Optional[str] = None, db: Session = Depends(get_db)):
+    location = _ensure_location_exists(db, location_id, include_archived=_parse_include_archived_flag(include_archived))
+    return _serialize_location_with_aggregate(db, location, request)
 
 
 @app.post("/api/locations", response_model=schemas.LocationOut, status_code=201, tags=["Locations"])
-def create_location(location: schemas.LocationCreate, db: Session = Depends(get_db)):
+def create_location(request: Request, location: schemas.LocationCreate, db: Session = Depends(get_db)):
     if db.query(models.Location).filter(models.Location.id == location.id).first():
         raise HTTPException(status_code=400, detail="Location ID already exists")
     _ensure_unique_chapter(db, location.chapter)
-    payload = location.model_dump()
-    payload["gallery_nodes"] = _build_gallery_nodes(payload.get("gallery_nodes"), payload.get("gallery_images"))
-    payload["featured_images"] = _normalize_featured_images(payload.get("featured_images"), payload.get("hero_poster"))
+
+    payload = _normalize_location_payload(location.model_dump(), for_patch=False)
     new_location = models.Location(**payload)
     db.add(new_location)
     db.commit()
     db.refresh(new_location)
-    return _serialize_location_with_aggregate(db, new_location)
+    return _serialize_location_with_aggregate(db, new_location, request)
 
 
 @app.put("/api/locations/{location_id}", response_model=schemas.LocationOut, tags=["Locations"])
-def update_location(location_id: str, payload: schemas.LocationCreate, db: Session = Depends(get_db)):
+def update_location(request: Request, location_id: str, payload: schemas.LocationCreate, db: Session = Depends(get_db)):
     loc = db.query(models.Location).filter(models.Location.id == location_id).first()
     if loc is None:
         raise HTTPException(status_code=404, detail="Location not found")
     _ensure_unique_chapter(db, payload.chapter, exclude_location_id=location_id)
-    payload_data = payload.model_dump()
-    payload_data["gallery_nodes"] = _build_gallery_nodes(payload_data.get("gallery_nodes"), payload_data.get("gallery_images"))
-    payload_data["featured_images"] = _normalize_featured_images(payload_data.get("featured_images"), payload_data.get("hero_poster"))
+
+    payload_data = _normalize_location_payload(payload.model_dump(), for_patch=False)
     for field, value in payload_data.items():
         setattr(loc, field, value)
+
     db.commit()
     db.refresh(loc)
-    return _serialize_location_with_aggregate(db, loc)
+    return _serialize_location_with_aggregate(db, loc, request)
 
 
 @app.patch("/api/locations/{location_id}", response_model=schemas.LocationOut, tags=["Locations"])
-def patch_location(location_id: str, payload: schemas.LocationPatch, db: Session = Depends(get_db)):
+def patch_location(request: Request, location_id: str, payload: schemas.LocationPatch, db: Session = Depends(get_db)):
     loc = db.query(models.Location).filter(models.Location.id == location_id).first()
     if loc is None:
         raise HTTPException(status_code=404, detail="Location not found")
+
     payload_data = payload.model_dump(exclude_unset=True)
     if "chapter" in payload_data:
         _ensure_unique_chapter(db, payload_data["chapter"], exclude_location_id=location_id)
-    if "gallery_nodes" in payload_data or "gallery_images" in payload_data:
-        payload_data["gallery_nodes"] = _build_gallery_nodes(payload_data.get("gallery_nodes"), payload_data.get("gallery_images", loc.gallery_images))
-    if "featured_images" in payload_data or "hero_poster" in payload_data:
-        payload_data["featured_images"] = _normalize_featured_images(payload_data.get("featured_images", getattr(loc, "featured_images", None)), payload_data.get("hero_poster", getattr(loc, "hero_poster", None)))
+
+    payload_data = _normalize_location_payload(payload_data, for_patch=True, existing_location=loc)
     for field, value in payload_data.items():
         setattr(loc, field, value)
+
     db.commit()
     db.refresh(loc)
-    return _serialize_location_with_aggregate(db, loc)
+    return _serialize_location_with_aggregate(db, loc, request)
 
 
 @app.delete("/api/locations/{location_id}", status_code=204, tags=["Locations"])
-def delete_location(location_id: str, db: Session = Depends(get_db)):
+def archive_location(location_id: str, db: Session = Depends(get_db)):
     loc = db.query(models.Location).filter(models.Location.id == location_id).first()
     if loc is None:
         raise HTTPException(status_code=404, detail="Location not found")
-    db.delete(loc)
+    loc.is_archived = 1
+    loc.archived_at = datetime.now(timezone.utc)
     db.commit()
+
+
+@app.post("/api/locations/{location_id}/restore", response_model=schemas.RestoreLocationResponse, tags=["Locations"])
+def restore_location(request: Request, location_id: str, db: Session = Depends(get_db)):
+    loc = db.query(models.Location).filter(models.Location.id == location_id).first()
+    if loc is None:
+        raise HTTPException(status_code=404, detail="Location not found")
+    loc.is_archived = 0
+    loc.archived_at = None
+    db.commit()
+    db.refresh(loc)
+    return schemas.RestoreLocationResponse(location=_serialize_location_with_aggregate(db, loc, request))
 
 
 @app.get("/api/locations/{location_id}/reviews", response_model=schemas.LocationReviewsOut, tags=["Reviews"])
 def get_location_reviews(location_id: str, db: Session = Depends(get_db)):
-    _ensure_location_exists(db, location_id)
+    _ensure_location_exists(db, location_id, include_archived=True)
     return _build_location_reviews_response(db, location_id)
 
 
@@ -382,7 +475,7 @@ def create_location_review(location_id: str, payload: schemas.ReviewCreate, db: 
 
 @app.delete("/api/locations/{location_id}/reviews/{review_id}", response_model=schemas.LocationReviewsOut, tags=["Reviews"])
 def delete_location_review(location_id: str, review_id: int, db: Session = Depends(get_db)):
-    _ensure_location_exists(db, location_id)
+    _ensure_location_exists(db, location_id, include_archived=True)
     review = db.query(models.Review).filter(models.Review.id == review_id, models.Review.location_id == location_id).first()
     if review is None:
         raise HTTPException(status_code=404, detail="Review not found")
@@ -393,7 +486,7 @@ def delete_location_review(location_id: str, review_id: int, db: Session = Depen
 
 @app.delete("/api/locations/{location_id}/reviews", response_model=schemas.LocationReviewsOut, tags=["Reviews"])
 def delete_all_location_reviews(location_id: str, db: Session = Depends(get_db)):
-    _ensure_location_exists(db, location_id)
+    _ensure_location_exists(db, location_id, include_archived=True)
     db.query(models.Review).filter(models.Review.location_id == location_id).delete(synchronize_session=False)
     db.commit()
     return _build_location_reviews_response(db, location_id)
@@ -428,10 +521,6 @@ def delete_all_notifications(db: Session = Depends(get_db)):
     db.commit()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Uploads
-# ─────────────────────────────────────────────────────────────────────────────
-
 @app.post("/api/upload", tags=["Uploads"])
 async def upload_image(request: Request, file: UploadFile = File(...)):
     file_path = os.path.join(UPLOAD_DIR, file.filename)
@@ -441,14 +530,11 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
     return {"url": f"{base_url}/uploads/{file.filename}"}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Stats
-# ─────────────────────────────────────────────────────────────────────────────
-
 @app.get("/api/stats", response_model=schemas.StatsOut, tags=["Stats"])
 def get_stats(db: Session = Depends(get_db)):
-    total_locations = db.query(func.count(models.Location.id)).scalar() or 0
-    locations = db.query(models.Location).all()
+    active_locations_query = db.query(models.Location).filter(models.Location.is_archived == 0)
+    total_locations = active_locations_query.count()
+    locations = active_locations_query.all()
     chapters = list({loc.chapter for loc in locations})
 
     return schemas.StatsOut(
@@ -456,7 +542,7 @@ def get_stats(db: Session = Depends(get_db)):
         total_chapters=len(chapters),
         locations_by_type={
             ht: db.query(func.count(models.Location.id))
-                   .filter(models.Location.highlight_type == ht).scalar() or 0
+                .filter(models.Location.highlight_type == ht, models.Location.is_archived == 0).scalar() or 0
             for ht in ("primary", "secondary", "highlight")
         },
     )
