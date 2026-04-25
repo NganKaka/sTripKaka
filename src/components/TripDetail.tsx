@@ -227,8 +227,9 @@ function FadeInImage({ src, alt, className, loading = 'lazy', decoding = 'async'
   }, [src]);
 
   return (
-    <span className={`block transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
+    <span className={`block transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-90'}`}>
       <img
+        key={src}
         src={src}
         alt={alt}
         loading={loading}
