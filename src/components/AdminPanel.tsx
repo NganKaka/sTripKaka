@@ -457,16 +457,21 @@ function ChapterSelector({ value, onChange, takenChapters }: { value: string; on
   );
 }
 
-function Autocomplete({ value, onChange, onSelect, excludedNames = [] }: { value: string; onChange: (v: string) => void; onSelect: (place: { name: string; lat: string; lng: string }) => void; excludedNames?: string[]; }) {
+function Autocomplete({ value, onChange, onSelect, excludedLocations = [] }: { value: string; onChange: (v: string) => void; onSelect: (place: { name: string; lat: string; lng: string }) => void; excludedLocations?: Array<{ name: string; lat: string; lng: string }>; }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
-  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
-  const excludedSet = new Set(excludedNames.map(normalize));
-  const filtered = VN_PLACES.filter(p => {
-    const normalizedName = normalize(p.name);
-    return normalizedName.includes(normalize(query)) && (normalizedName === normalize(value) || !excludedSet.has(normalizedName));
-  });
+
+  const normalize = (s: string) => slugify(s).replace(/[_-]/g, '');
+  const hasMeaningfulOverlap = (a: string, b: string) => a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a));
+  const isSameCoordinates = (aLat: string, aLng: string, bLat: string, bLng: string) => {
+    const latA = Number.parseFloat(aLat);
+    const lngA = Number.parseFloat(aLng);
+    const latB = Number.parseFloat(bLat);
+    const lngB = Number.parseFloat(bLng);
+    if ([latA, lngA, latB, lngB].some(Number.isNaN)) return false;
+    return Math.abs(latA - latB) < 0.0001 && Math.abs(lngA - lngB) < 0.0001;
+  };
 
   useEffect(() => { setQuery(value); }, [value]);
   useEffect(() => {
@@ -474,6 +479,19 @@ function Autocomplete({ value, onChange, onSelect, excludedNames = [] }: { value
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const normalizedQuery = normalize(query);
+  const normalizedValue = normalize(value);
+  const filtered = VN_PLACES.filter(p => {
+    const normalizedName = normalize(p.name);
+    const isExcluded = excludedLocations.some(loc => {
+      const normalizedLocationName = normalize(loc.name);
+      const nameMatches = normalizedLocationName === normalizedName || hasMeaningfulOverlap(normalizedLocationName, normalizedName);
+      return nameMatches || isSameCoordinates(loc.lat, loc.lng, p.lat, p.lng);
+    });
+
+    return normalizedName.includes(normalizedQuery) && (normalizedName === normalizedValue || !isExcluded);
+  });
 
   return (
     <div ref={ref} className="relative">
@@ -1036,8 +1054,10 @@ export default function AdminPanel() {
     setForm(f => ({ ...f, name: place.name, id: editing ? f.id : newId, lat: place.lat, lng: place.lng }));
   };
 
-  const takenDestinationNames = useMemo(
-    () => locations.filter(loc => loc.id !== editing).map(loc => loc.name),
+  const takenDestinations = useMemo(
+    () => locations
+      .filter(loc => loc.id !== editing)
+      .map(loc => ({ name: loc.name, lat: loc.lat, lng: loc.lng })),
     [locations, editing]
   );
 
@@ -1300,7 +1320,7 @@ export default function AdminPanel() {
             <div className="space-y-5">
               <div className="glass-card rounded-xl p-6 ghost-border space-y-5">
                 <h2 className="font-headline font-bold text-on-surface text-base flex items-center gap-2"><MapPin size={16} className="text-primary" /> Basic Info</h2>
-                <Field label="Destination Name" icon={MapPin}><Autocomplete value={form.name} onChange={handleNameChange} onSelect={handlePlaceSelect} excludedNames={takenDestinationNames} /></Field>
+                <Field label="Destination Name" icon={MapPin}><Autocomplete value={form.name} onChange={handleNameChange} onSelect={handlePlaceSelect} excludedLocations={takenDestinations} /></Field>
                 <Field label="Auto ID (slug)" icon={FileText}><input className={inputCls} value={form.id} onChange={e => setForm(f => ({ ...f, id: e.target.value }))} placeholder="auto-generated" readOnly={!!editing} style={editing ? { opacity: 0.5 } : {}} /></Field>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Chapter" icon={Star}><ChapterSelector value={form.chapter} onChange={handleChapterChange} takenChapters={takenChapters} /></Field>
