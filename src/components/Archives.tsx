@@ -55,7 +55,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
   const [hasMore, setHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [expandedCount, setExpandedCount] = useState(ARCHIVE_PAGE_SIZE);
+  const [displayCount, setDisplayCount] = useState(ARCHIVE_PAGE_SIZE);
   const filterDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const formatVisitedDate = (value: string) => {
@@ -77,7 +77,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
       setLoadingMore(true);
     } else {
       setLoading(true);
-      setExpandedCount(ARCHIVE_PAGE_SIZE);
+      setDisplayCount(ARCHIVE_PAGE_SIZE);
     }
 
     try {
@@ -88,7 +88,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
 
       if (isLoadMore) {
         setItems(prev => [...prev, ...newItems]);
-        setExpandedCount(prev => prev + newItems.length);
+        setDisplayCount(prev => prev + newItems.length);
       } else {
         setItems(newItems);
       }
@@ -123,11 +123,21 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const visibleItems = items.slice(0, expandedCount);
+  const visibleItems = items.slice(0, displayCount);
+  const hasHiddenItems = displayCount < items.length;
   const canHideMore = visibleItems.length > ARCHIVE_PAGE_SIZE;
+  const canLoadMore = hasMore || hasHiddenItems;
 
   const handleHideRecent = () => {
-    setExpandedCount(prev => Math.max(ARCHIVE_PAGE_SIZE, prev - ARCHIVE_PAGE_SIZE));
+    setDisplayCount(prev => Math.max(ARCHIVE_PAGE_SIZE, prev - ARCHIVE_PAGE_SIZE));
+  };
+
+  const handleLoadOlder = async () => {
+    if (hasHiddenItems) {
+      setDisplayCount(prev => Math.min(items.length, prev + ARCHIVE_PAGE_SIZE));
+      return;
+    }
+    await fetchItems(true, { filter: activeFilter, search: searchQuery });
   };
 
   const filtered = visibleItems;
@@ -305,11 +315,11 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
         </div>
       )}
 
-      {(hasMore || canHideMore) && (
+      {(canLoadMore || canHideMore) && (
         <div className="flex justify-center gap-3 pt-8">
-          {hasMore && (
+          {canLoadMore && (
             <button
-              onClick={() => fetchItems(true, { filter: activeFilter, search: searchQuery })}
+              onClick={handleLoadOlder}
               disabled={loadingMore}
               className="px-8 py-3 rounded-full glass-card text-[10px] font-bold tracking-widest text-secondary uppercase hover:text-primary transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
@@ -324,7 +334,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
               disabled={loadingMore}
               className="px-8 py-3 rounded-full glass-card text-[10px] font-bold tracking-widest text-secondary uppercase hover:text-primary transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              Hide 6 Memories
+              Hide Memories
             </button>
           )}
         </div>
