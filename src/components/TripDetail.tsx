@@ -248,7 +248,7 @@ function FloatingImage({ src, alt, delay = 0, className = '' }: { src: string; a
     <motion.div
       animate={{ y: [0, -12, 0] }}
       transition={{ duration: 4 + delay * 0.5, repeat: Infinity, ease: 'easeInOut', delay }}
-      className={`rounded-xl overflow-hidden group ${className}`}
+      className={`rounded-xl overflow-hidden group h-full ${className}`}
     >
       <FadeInImage
         src={src}
