@@ -5,6 +5,7 @@ import { MagneticCard } from './Dashboard';
 import { apiUrl } from '../lib/api';
 
 const ARCHIVE_FILTERS = ['ALL', 'CHAPTER I', 'CHAPTER II', 'CHAPTER III'];
+const ARCHIVE_PAGE_SIZE = 6;
 
 const buildArchivesUrl = (skip: number, limit: number, activeFilter: string, searchQuery: string) => {
   const params = new URLSearchParams({
@@ -54,6 +55,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
   const [hasMore, setHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [expandedCount, setExpandedCount] = useState(ARCHIVE_PAGE_SIZE);
   const filterDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const formatVisitedDate = (value: string) => {
@@ -68,13 +70,14 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
   const fetchItems = async (isLoadMore = false, options?: { filter?: string; search?: string }) => {
     const nextFilter = options?.filter ?? activeFilter;
     const nextSearch = options?.search ?? searchQuery;
-    const limit = isLoadMore ? 10 : 5;
+    const limit = ARCHIVE_PAGE_SIZE;
     const skip = isLoadMore ? items.length : 0;
 
     if (isLoadMore) {
       setLoadingMore(true);
     } else {
       setLoading(true);
+      setExpandedCount(ARCHIVE_PAGE_SIZE);
     }
 
     try {
@@ -85,6 +88,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
 
       if (isLoadMore) {
         setItems(prev => [...prev, ...newItems]);
+        setExpandedCount(prev => prev + newItems.length);
       } else {
         setItems(newItems);
       }
@@ -119,7 +123,14 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filtered = items;
+  const visibleItems = items.slice(0, expandedCount);
+  const canHideMore = visibleItems.length > ARCHIVE_PAGE_SIZE;
+
+  const handleHideRecent = () => {
+    setExpandedCount(prev => Math.max(ARCHIVE_PAGE_SIZE, prev - ARCHIVE_PAGE_SIZE));
+  };
+
+  const filtered = visibleItems;
 
   return (
     <div className="space-y-12">
@@ -294,16 +305,28 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
         </div>
       )}
 
-      {hasMore && (
-        <div className="flex justify-center pt-8">
-          <button 
-            onClick={() => fetchItems(true, { filter: activeFilter, search: searchQuery })}
-            disabled={loadingMore}
-            className="px-8 py-3 rounded-full glass-card text-[10px] font-bold tracking-widest text-secondary uppercase hover:text-primary transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {loadingMore && <Loader2 size={14} className="animate-spin" />}
-            {loadingMore ? 'Accessing Archives...' : 'Load Older Memories'}
-          </button>
+      {(hasMore || canHideMore) && (
+        <div className="flex justify-center gap-3 pt-8">
+          {hasMore && (
+            <button
+              onClick={() => fetchItems(true, { filter: activeFilter, search: searchQuery })}
+              disabled={loadingMore}
+              className="px-8 py-3 rounded-full glass-card text-[10px] font-bold tracking-widest text-secondary uppercase hover:text-primary transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {loadingMore && <Loader2 size={14} className="animate-spin" />}
+              {loadingMore ? 'Accessing Archives...' : 'Load Older Memories'}
+            </button>
+          )}
+
+          {canHideMore && (
+            <button
+              onClick={handleHideRecent}
+              disabled={loadingMore}
+              className="px-8 py-3 rounded-full glass-card text-[10px] font-bold tracking-widest text-secondary uppercase hover:text-primary transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              Hide 6 Memories
+            </button>
+          )}
         </div>
       )}
     </div>
