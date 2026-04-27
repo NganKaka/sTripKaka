@@ -2,6 +2,7 @@ import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
 import { Mountain, ArrowLeft, Star } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { apiUrl } from '../lib/api';
+import { useMusic } from '../contexts/MusicContext';
 
 type GalleryNode = {
   title: string;
@@ -34,6 +35,7 @@ interface LocationResponse {
   short_desc?: string;
   gallery_nodes?: any[];
   gallery_images?: string[];
+  music_url?: string;
   img?: string;
 }
 
@@ -165,6 +167,7 @@ function FadeInImage({ src, alt, className, loading = 'lazy', decoding = 'async'
 
 export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: GalleryViewProps) {
   const { scrollYProgress } = useScroll();
+  const { activateMusic } = useMusic();
   const traceHeight = useTransform(scrollYProgress, [0, 1], ['0%', '100%']);
 
   const [nodes, setNodes] = useState<GalleryNode[]>([]);
@@ -233,6 +236,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
         const locationName = (data.name || locationId.replace(/_/g, ' ')).trim();
         setHeroHeadline(subtitle || 'Golden Hour Escape');
         setHeroLocationName(locationName || 'Unknown Destination');
+        activateMusic(locationId, data.music_url);
         setLoading(false);
       })
       .catch(() => {

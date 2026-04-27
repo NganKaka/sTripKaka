@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   Plus, Trash2, Edit3, Save, X, Image, MapPin, ChevronDown, ChevronLeft, ChevronRight,
-  Check, AlertCircle, Loader2, Globe, FileText, Film, Star, Calendar,
+  Check, AlertCircle, Loader2, Globe, FileText, Film, Star, Calendar, Music,
   Archive, RotateCcw, Bold, Italic, Heading1, Heading2, List, ListOrdered, Link2, Quote, RefreshCcw
 } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
@@ -122,6 +122,7 @@ type Location = {
   lng: string;
   hero_video: string;
   hero_poster: string;
+  music_url: string;
   featured_images: [string, string, string];
   full_description: string;
   gallery_images: string[];
@@ -171,6 +172,7 @@ const EMPTY_FORM: Location = {
   lng: '',
   hero_video: '',
   hero_poster: '',
+  music_url: '',
   featured_images: ['', '', ''],
   full_description: '',
   gallery_images: [],
@@ -368,6 +370,7 @@ function buildLocationPayload(form: Location) {
     gallery_images: galleryImages.length ? galleryImages : null,
     hero_video: form.hero_video || null,
     hero_poster: form.hero_poster || null,
+    music_url: form.music_url || null,
     full_description: form.full_description || null,
     is_archived: Boolean(form.is_archived),
     archived_at: form.archived_at || null,
@@ -523,16 +526,21 @@ function SingleFileUpload({
   onChange,
   accept = 'image/*',
   actionSlot,
+  allowDrop = true,
 }: {
   value: string;
   onChange: (url: string) => void;
   accept?: string;
   actionSlot?: (controls: { openPicker: () => void; clear: () => void }) => React.ReactNode;
+  allowDrop?: boolean;
 }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isVideo = accept.includes('video');
+  const isAudio = accept.includes('audio');
+  const mediaLabel = isAudio ? 'Audio' : isVideo ? 'Video' : 'Image';
+  const MediaIcon = isAudio ? Music : isVideo ? Film : Image;
 
   const uploadFile = async (file: File) => {
     setUploading(true);
@@ -587,16 +595,16 @@ function SingleFileUpload({
           <motion.div key="uploaded-file" initial={{ opacity: 0, scale: 0.95, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.94, y: -8 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="space-y-2">
               <div className="flex items-center gap-2 min-w-0">
-                {!isVideo ? (
+                {!isVideo && !isAudio ? (
                   <img src={value} alt="Uploaded preview" className="w-12 h-12 rounded-lg object-cover border border-white/10 bg-white/5" />
                 ) : (
                   <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
-                    <Film size={16} className="text-primary/50" />
+                    <MediaIcon size={16} className="text-primary/50" />
                   </div>
                 )}
                 <div className="min-w-0">
                   <p className="text-xs text-on-surface/80 truncate">{value.split('/').pop()}</p>
-                  <p className="text-[10px] font-tech text-secondary/40 uppercase tracking-wider">{isVideo ? 'Video uploaded' : 'Image uploaded'}</p>
+                  <p className="text-[10px] font-tech text-secondary/40 uppercase tracking-wider">{mediaLabel} uploaded</p>
                 </div>
               </div>
               {actionSlot ? (
@@ -614,7 +622,7 @@ function SingleFileUpload({
             </div>
           </motion.div>
         ) : (
-          <motion.div key="upload-dropzone" initial={{ opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -10 }} transition={{ duration: 0.24, ease: 'easeOut' }} onDragOver={e => { e.preventDefault(); if (!uploading) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f && !uploading) uploadFile(f); }} onClick={() => !uploading && fileInputRef.current?.click()} className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-7 cursor-pointer transition-all duration-200 select-none overflow-hidden ${dragging ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(233,195,73,0.2)] scale-[1.01]' : 'border-white/10 hover:border-primary/40 hover:bg-white/5 hover:shadow-[0_0_20px_rgba(233,195,73,0.08)]'}`}>
+          <motion.div key="upload-dropzone" initial={{ opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -10 }} transition={{ duration: 0.24, ease: 'easeOut' }} onDragOver={e => { if (!allowDrop) return; e.preventDefault(); if (!uploading) setDragging(true); }} onDragLeave={() => { if (!allowDrop) return; setDragging(false); }} onDrop={e => { if (!allowDrop) return; e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f && !uploading) uploadFile(f); }} onClick={() => !uploading && fileInputRef.current?.click()} className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 ${allowDrop ? 'border-dashed py-7' : 'border-solid py-5'} cursor-pointer transition-all duration-200 select-none overflow-hidden ${dragging ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(233,195,73,0.2)] scale-[1.01]' : 'border-white/10 hover:border-primary/40 hover:bg-white/5 hover:shadow-[0_0_20px_rgba(233,195,73,0.08)]'}`}>
             {uploading ? (
               <div className="flex flex-col items-center gap-2">
                 <Loader2 size={22} className="text-primary animate-spin" />
@@ -623,10 +631,10 @@ function SingleFileUpload({
             ) : (
               <>
                 <div className="p-2.5 rounded-full bg-white/5 border border-white/10 transition-all">
-                  {isVideo ? <Film size={18} className="text-primary/50" /> : <Image size={18} className="text-primary/50" />}
+                  <MediaIcon size={18} className="text-primary/50" />
                 </div>
                 <p className="text-xs font-body text-secondary/50 text-center px-4 transition-colors hover:text-secondary/70">
-                  <span className="text-primary font-semibold">Click to browse</span> or drag file here
+                  <span className="text-primary font-semibold">Click to browse</span>{allowDrop ? ' or drag file here' : ''}
                 </p>
               </>
             )}
@@ -1338,6 +1346,7 @@ export default function AdminPanel() {
                 <h2 className="font-headline font-bold text-on-surface text-base flex items-center gap-2"><Image size={16} className="text-primary" /> Media</h2>
                 <Field label="Thumbnail Image" icon={Image}><SingleFileUpload value={form.img} onChange={v => setForm(f => ({ ...f, img: v }))} /></Field>
                 <Field label="Hero Video (optional)" icon={Film}><SingleFileUpload value={form.hero_video} onChange={v => setForm(f => ({ ...f, hero_video: v }))} accept="video/*" /></Field>
+                <Field label="Background Music (optional)" icon={Music}><SingleFileUpload value={form.music_url} onChange={v => setForm(f => ({ ...f, music_url: v }))} accept="audio/*" allowDrop={false} /></Field>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] font-tech uppercase tracking-widest text-secondary/70">Featured Images (Top 3)</p>

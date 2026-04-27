@@ -21,6 +21,7 @@ class LocationBase(BaseModel):
     lng: str
     hero_video: Optional[str] = None
     hero_poster: Optional[str] = None
+    music_url: Optional[str] = None
     featured_images: Optional[List[str]] = Field(default_factory=lambda: ['', '', ''], min_length=3, max_length=3)
     full_description: Optional[str] = None
     gallery_images: Optional[List[str]] = None
@@ -45,6 +46,7 @@ class LocationPatch(BaseModel):
     lng: Optional[str] = None
     hero_video: Optional[str] = None
     hero_poster: Optional[str] = None
+    music_url: Optional[str] = None
     featured_images: Optional[List[str]] = Field(default_factory=lambda: ['', '', ''], min_length=3, max_length=3)
     full_description: Optional[str] = None
     gallery_images: Optional[List[str]] = None

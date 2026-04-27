@@ -20,6 +20,7 @@ class Location(Base):
     # Detailed content for Trip Detail / Gallery views
     hero_video = Column(String, nullable=True)
     hero_poster = Column(String, nullable=True)
+    music_url = Column(String, nullable=True)
     featured_images = Column(ARRAY(String), nullable=True)
     full_description = Column(Text, nullable=True)
     gallery_images = Column(ARRAY(String), nullable=True)  # List of image URLs

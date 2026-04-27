@@ -168,6 +168,7 @@ def _serialize_location(loc: models.Location, aggregate: Optional[Dict[str, floa
     data["img"] = _resolve_asset_url(data.get("img"), request)
     data["hero_video"] = _resolve_asset_url(data.get("hero_video"), request)
     data["hero_poster"] = _resolve_asset_url(data.get("hero_poster"), request)
+    data["music_url"] = _resolve_asset_url(data.get("music_url"), request)
     data["gallery_images"] = [_resolve_asset_url(image, request) for image in (data.get("gallery_images") or [])]
     data["gallery_nodes"] = _resolve_gallery_nodes_asset_urls(_build_gallery_nodes(getattr(loc, "gallery_nodes", None), loc.gallery_images), request)
     data["featured_images"] = [_resolve_asset_url(image, request) for image in _normalize_featured_images(getattr(loc, "featured_images", None), getattr(loc, "hero_poster", None))]
@@ -431,6 +432,9 @@ def _normalize_location_payload(payload: dict, for_patch: bool = False, existing
         featured_images = normalized.get("featured_images") if "featured_images" in normalized else (getattr(existing_location, "featured_images", None) if existing_location else None)
         hero_poster = normalized.get("hero_poster") if "hero_poster" in normalized else (getattr(existing_location, "hero_poster", None) if existing_location else None)
         normalized["featured_images"] = _normalize_featured_images(featured_images, hero_poster)
+
+    if "music_url" in normalized and normalized["music_url"] == "":
+        normalized["music_url"] = None
 
     if "is_archived" in normalized:
         normalized["is_archived"] = 1 if bool(normalized["is_archived"]) else 0

@@ -2,6 +2,7 @@ import { motion, useScroll, useSpring, useInView } from 'framer-motion';
 import { MapPin, Sun, Camera, ArrowRight, Quote, ArrowLeft } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { apiUrl } from '../lib/api';
+import { useMusic } from '../contexts/MusicContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -27,6 +28,7 @@ interface LocationApiResponse {
   full_description?: string;
   gallery_nodes?: any[];
   gallery_images?: string[];
+  music_url?: string;
   img?: string;
 }
 
@@ -264,6 +266,7 @@ function FloatingImage({ src, alt, delay = 0, className = '' }: { src: string; a
 export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: TripDetailProps) {
   const [tripData, setTripData] = useState<TripState | null>(null);
   const [loading, setLoading] = useState(true);
+  const { activateMusic } = useMusic();
 
   useEffect(() => {
     setLoading(true);
@@ -271,10 +274,12 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
       .then(res => { if (!res.ok) throw new Error('Not found'); return res.json(); })
       .then((data: LocationApiResponse) => {
         setTripData(buildTripState(locationId, data));
+        activateMusic(locationId, data.music_url);
         setLoading(false);
       })
       .catch(() => {
         setTripData(buildTripState(locationId, getFallbackLocation(locationId)));
+        activateMusic(locationId, undefined);
         setLoading(false);
       });
   }, [locationId]);
