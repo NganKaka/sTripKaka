@@ -452,11 +452,21 @@ def _build_notification_message(review: models.Review) -> str:
     return f"{review.nickname}: {short_comment}"
 
 
+def _build_image_note_notification_title(location: models.Location) -> str:
+    return f"New note on {location.name}"
+
+
+def _build_image_note_notification_message(note: models.ImageNote) -> str:
+    comment = (note.comment or "").strip()
+    return comment[:120] + ("..." if len(comment) > 120 else "")
+
+
 def _serialize_notification(notification: models.Notification):
     return {
         "id": int(notification.id),
         "location_id": notification.location_id,
-        "review_id": int(notification.review_id),
+        "review_id": int(notification.review_id) if notification.review_id is not None else None,
+        "image_note_id": int(notification.image_note_id) if notification.image_note_id is not None else None,
         "title": notification.title,
         "message": notification.message,
         "is_read": bool(notification.is_read),
@@ -718,6 +728,17 @@ def create_image_note(location_id: str, payload: schemas.ImageNoteCreate, db: Se
         comment=comment,
     )
     db.add(note)
+    db.flush()
+
+    notification = models.Notification(
+        location_id=location_id,
+        review_id=None,
+        image_note_id=note.id,
+        title=_build_image_note_notification_title(location),
+        message=_build_image_note_notification_message(note),
+        is_read=0,
+    )
+    db.add(notification)
     db.commit()
     return _build_image_notes_response(db, location_id, image_src)
 

@@ -118,7 +118,8 @@ class ImageNotesOut(BaseModel):
 class NotificationOut(BaseModel):
     id: int
     location_id: str
-    review_id: int
+    review_id: Optional[int] = None
+    image_note_id: Optional[int] = None
     title: str
     message: str
     is_read: bool

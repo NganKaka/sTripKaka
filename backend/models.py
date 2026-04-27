@@ -65,6 +65,7 @@ class ImageNote(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
 
     location = relationship("Location", back_populates="image_notes")
+    notifications = relationship("Notification", back_populates="image_note", cascade="all, delete-orphan")
 
     __mapper_args__ = {"eager_defaults": True}
 
@@ -74,7 +75,8 @@ class Notification(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     location_id = Column(String, ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
-    review_id = Column(BigInteger, ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False, index=True)
+    review_id = Column(BigInteger, ForeignKey("reviews.id", ondelete="CASCADE"), nullable=True, index=True)
+    image_note_id = Column(BigInteger, ForeignKey("image_notes.id", ondelete="CASCADE"), nullable=True, index=True)
     title = Column(String(160), nullable=False)
     message = Column(Text, nullable=False)
     is_read = Column(Integer, nullable=False, default=0, index=True)
@@ -82,6 +84,7 @@ class Notification(Base):
 
     location = relationship("Location")
     review = relationship("Review", back_populates="notifications")
+    image_note = relationship("ImageNote", back_populates="notifications")
 
     __mapper_args__ = {"eager_defaults": True}
 
