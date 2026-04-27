@@ -384,6 +384,56 @@ def _build_location_reviews_response(db: Session, location_id: str):
     }
 
 
+def _extract_location_gallery_image_set(location: models.Location) -> set[str]:
+    nodes = _build_gallery_nodes(getattr(location, "gallery_nodes", None), getattr(location, "gallery_images", None))
+    node_images = [img for node in nodes for img in _normalize_node_images(node.get("images", []))]
+    featured = _normalize_featured_images(getattr(location, "featured_images", None), getattr(location, "hero_poster", None))
+    all_images = [*(location.gallery_images or []), *node_images, *featured, location.img or ""]
+    return {img for img in all_images if img}
+
+
+def _normalize_image_src_or_fail(image_src: str) -> str:
+    normalized = (image_src or "").strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="image_src is required")
+    return normalized
+
+
+def _normalize_image_note_comment_or_fail(comment: str) -> str:
+    normalized = (comment or "").strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Comment cannot be empty")
+    if len(normalized) > 150:
+        raise HTTPException(status_code=400, detail="Comment must be at most 150 characters")
+    return _mask_banned_comment_words(normalized)
+
+
+def _serialize_image_note(note: models.ImageNote):
+    return {
+        "id": int(note.id),
+        "location_id": note.location_id,
+        "image_src": note.image_src,
+        "nickname": note.nickname,
+        "comment": _sanitize_review_comment(note.comment or ""),
+        "created_at": note.created_at,
+    }
+
+
+def _build_image_notes_response(db: Session, location_id: str, image_src: str):
+    notes = (
+        db.query(models.ImageNote)
+        .filter(models.ImageNote.location_id == location_id, models.ImageNote.image_src == image_src)
+        .order_by(models.ImageNote.created_at.asc(), models.ImageNote.id.asc())
+        .all()
+    )
+    total_notes = len(notes)
+    return {
+        "total_notes": total_notes,
+        "remaining_slots": max(0, 3 - total_notes),
+        "notes": [_serialize_image_note(note) for note in notes],
+    }
+
+
 def _build_notification_title(location: models.Location) -> str:
     return f"New comment on {location.name}"
 
@@ -624,6 +674,60 @@ def delete_all_location_reviews(location_id: str, db: Session = Depends(get_db))
     db.query(models.Review).filter(models.Review.location_id == location_id).delete(synchronize_session=False)
     db.commit()
     return _build_location_reviews_response(db, location_id)
+
+
+@app.get("/api/locations/{location_id}/image-notes", response_model=schemas.ImageNotesOut, tags=["ImageNotes"])
+def get_image_notes(location_id: str, image_src: str, db: Session = Depends(get_db)):
+    location = _ensure_location_exists(db, location_id, include_archived=True)
+    normalized_src = _normalize_image_src_or_fail(image_src)
+    if normalized_src not in _extract_location_gallery_image_set(location):
+        raise HTTPException(status_code=404, detail="Image not found for this location")
+    return _build_image_notes_response(db, location_id, normalized_src)
+
+
+@app.post("/api/locations/{location_id}/image-notes", response_model=schemas.ImageNotesOut, status_code=201, tags=["ImageNotes"])
+def create_image_note(location_id: str, payload: schemas.ImageNoteCreate, db: Session = Depends(get_db)):
+    location = _ensure_location_exists(db, location_id)
+    image_src = _normalize_image_src_or_fail(payload.image_src)
+    if image_src not in _extract_location_gallery_image_set(location):
+        raise HTTPException(status_code=404, detail="Image not found for this location")
+
+    existing_count = (
+        db.query(func.count(models.ImageNote.id))
+        .filter(models.ImageNote.location_id == location_id, models.ImageNote.image_src == image_src)
+        .scalar()
+    ) or 0
+    if existing_count >= 3:
+        raise HTTPException(status_code=400, detail="This image already has 3 notes (maximum reached)")
+
+    nickname = _normalize_nickname(payload.nickname)
+    comment = _normalize_image_note_comment_or_fail(payload.comment)
+
+    note = models.ImageNote(
+        location_id=location_id,
+        image_src=image_src,
+        nickname=nickname,
+        comment=comment,
+    )
+    db.add(note)
+    db.commit()
+    return _build_image_notes_response(db, location_id, image_src)
+
+
+@app.delete("/api/locations/{location_id}/image-notes/{note_id}", response_model=schemas.ImageNotesOut, tags=["ImageNotes"])
+def delete_image_note(location_id: str, note_id: int, db: Session = Depends(get_db)):
+    _ensure_location_exists(db, location_id, include_archived=True)
+    note = (
+        db.query(models.ImageNote)
+        .filter(models.ImageNote.id == note_id, models.ImageNote.location_id == location_id)
+        .first()
+    )
+    if note is None:
+        raise HTTPException(status_code=404, detail="Image note not found")
+    image_src = note.image_src
+    db.delete(note)
+    db.commit()
+    return _build_image_notes_response(db, location_id, image_src)
 
 
 @app.get("/api/notifications", response_model=schemas.NotificationsOut, tags=["Notifications"])

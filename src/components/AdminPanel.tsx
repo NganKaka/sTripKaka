@@ -144,6 +144,26 @@ type ReviewsResponse = {
   reviews: ReviewItem[];
 };
 
+type ImageNoteItem = {
+  id: number;
+  location_id: string;
+  image_src: string;
+  nickname: string;
+  comment: string;
+  created_at: string;
+};
+
+type ImageNotesResponse = {
+  total_notes: number;
+  remaining_slots: number;
+  notes: ImageNoteItem[];
+};
+
+type GroupedImageNotes = {
+  imageSrc: string;
+  notes: ImageNoteItem[];
+};
+
 type LocationListTab = 'active' | 'archived';
 
 type StoryMode = 'edit' | 'preview';
@@ -336,6 +356,20 @@ function applyMarkdownFormat(value: string, selectionStart: number, selectionEnd
     };
   };
 
+}
+
+function groupImageNotes(notes: ImageNoteItem[]): GroupedImageNotes[] {
+  const grouped = new Map<string, ImageNoteItem[]>();
+  notes.forEach(note => {
+    const current = grouped.get(note.image_src) || [];
+    current.push(note);
+    grouped.set(note.image_src, current);
+  });
+  return Array.from(grouped.entries()).map(([imageSrc, groupedNotes]) => ({ imageSrc, notes: groupedNotes }));
+}
+
+function getImageNoteFilename(src: string) {
+  return src.split('/').pop() || 'Image';
 }
 
 function normalizeLocationFromApi(loc: any): Location {
@@ -939,6 +973,8 @@ export default function AdminPanel() {
   const [selectedLocationForReviews, setSelectedLocationForReviews] = useState<string | null>(null);
   const [reviewsByLocation, setReviewsByLocation] = useState<Record<string, ReviewItem[]>>({});
   const [reviewsLoadingByLocation, setReviewsLoadingByLocation] = useState<Record<string, boolean>>({});
+  const [imageNotesByLocation, setImageNotesByLocation] = useState<Record<string, ImageNoteItem[]>>({});
+  const [imageNotesLoadingByLocation, setImageNotesLoadingByLocation] = useState<Record<string, boolean>>({});
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
@@ -983,7 +1019,18 @@ export default function AdminPanel() {
     [reviewsByLocation, selectedLocationForReviews]
   );
 
+  const selectedImageNotes = useMemo(
+    () => (selectedLocationForReviews ? imageNotesByLocation[selectedLocationForReviews] || [] : []),
+    [imageNotesByLocation, selectedLocationForReviews]
+  );
+
+  const groupedSelectedImageNotes = useMemo(
+    () => groupImageNotes(selectedImageNotes),
+    [selectedImageNotes]
+  );
+
   const selectedReviewsLoading = selectedLocationForReviews ? !!reviewsLoadingByLocation[selectedLocationForReviews] : false;
+  const selectedImageNotesLoading = selectedLocationForReviews ? !!imageNotesLoadingByLocation[selectedLocationForReviews] : false;
 
   const activeCount = useMemo(() => locations.filter(l => !l.is_archived).length, [locations]);
   const archivedCount = useMemo(() => locations.filter(l => l.is_archived).length, [locations]);
@@ -1002,9 +1049,44 @@ export default function AdminPanel() {
     }
   };
 
+  const fetchImageNotesForLocation = async (locationId: string) => {
+    const loc = locations.find(location => location.id === locationId);
+    const imageSet = new Set<string>();
+    if (loc?.img) imageSet.add(loc.img);
+    (loc?.featured_images || []).filter(Boolean).forEach(src => imageSet.add(src));
+    (loc?.gallery_images || []).filter(Boolean).forEach(src => imageSet.add(src));
+    (loc?.gallery_nodes || []).forEach(node => (node.images || []).filter(Boolean).forEach((src: string) => imageSet.add(src)));
+
+    const imageSources = Array.from(imageSet);
+    if (imageSources.length === 0) {
+      setImageNotesByLocation(prev => ({ ...prev, [locationId]: [] }));
+      return;
+    }
+
+    setImageNotesLoadingByLocation(prev => ({ ...prev, [locationId]: true }));
+    try {
+      const responses = await Promise.all(
+        imageSources.map(async imageSrc => {
+          const res = await fetch(`${API}/locations/${locationId}/image-notes?image_src=${encodeURIComponent(imageSrc)}`);
+          if (!res.ok) return [] as ImageNoteItem[];
+          const data: ImageNotesResponse = await res.json();
+          return Array.isArray(data.notes) ? data.notes : [];
+        })
+      );
+      setImageNotesByLocation(prev => ({ ...prev, [locationId]: responses.flat() }));
+    } catch {
+      setImageNotesByLocation(prev => ({ ...prev, [locationId]: [] }));
+    } finally {
+      setImageNotesLoadingByLocation(prev => ({ ...prev, [locationId]: false }));
+    }
+  };
+
   useEffect(() => {
-    if (selectedLocationForReviews) fetchReviewsForLocation(selectedLocationForReviews);
-  }, [selectedLocationForReviews]);
+    if (selectedLocationForReviews) {
+      fetchReviewsForLocation(selectedLocationForReviews);
+      fetchImageNotesForLocation(selectedLocationForReviews);
+    }
+  }, [selectedLocationForReviews, locations]);
 
   const handleSelectLocationForReviews = (locationId: string) => {
     setSelectedLocationForReviews(locationId);
@@ -1020,6 +1102,26 @@ export default function AdminPanel() {
       showToast('Comment deleted.', 'success');
     } catch {
       showToast('Delete comment failed.', 'error');
+    }
+  };
+
+  const handleDeleteImageNote = async (locationId: string, noteId: number) => {
+    if (!window.confirm('Delete this image note?')) return;
+    try {
+      const res = await fetch(`${API}/locations/${locationId}/image-notes/${noteId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      const data: ImageNotesResponse = await res.json();
+      setImageNotesByLocation(prev => {
+        const currentNotes = prev[locationId] || [];
+        const refreshedNotes = currentNotes.filter(note => note.id !== noteId);
+        if (Array.isArray(data.notes) && data.notes.length > 0) {
+          return { ...prev, [locationId]: [...refreshedNotes.filter(n => n.image_src !== data.notes[0].image_src), ...data.notes] };
+        }
+        return { ...prev, [locationId]: refreshedNotes };
+      });
+      showToast('Image note deleted.', 'success');
+    } catch {
+      showToast('Delete image note failed.', 'error');
     }
   };
 
@@ -1318,6 +1420,54 @@ export default function AdminPanel() {
                     </div>
                   )}
                 </div>
+
+                <div className="glass-card rounded-xl p-6 ghost-border space-y-5">
+                  <div>
+                    <p className="text-[10px] font-tech text-primary/70 uppercase tracking-widest">Image notes</p>
+                    <h3 className="font-headline font-bold text-on-surface text-xl">{selectedLocation ? `${selectedLocation.name} photo notes` : 'Select a location'}</h3>
+                    <p className="text-secondary/60 text-sm mt-1">{selectedLocation ? 'Delete notes attached to individual gallery photos.' : `Click a ${listTab === 'archived' ? 'archived ' : ''}location card above to load its image notes.`}</p>
+                  </div>
+
+                  {!selectedLocation ? (
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-10 text-center text-secondary/50 text-sm">No location selected.</div>
+                  ) : selectedImageNotesLoading ? (
+                    <div className="flex items-center justify-center py-10"><Loader2 size={24} className="text-primary animate-spin" /></div>
+                  ) : groupedSelectedImageNotes.length === 0 ? (
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-10 text-center text-secondary/50 text-sm">This location has no image notes yet.</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {groupedSelectedImageNotes.map(group => (
+                        <div key={`image-note-group-${group.imageSrc}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+                          <div className="flex items-center gap-3">
+                            <img src={group.imageSrc} alt={getImageNoteFilename(group.imageSrc)} className="w-18 h-18 rounded-xl object-cover border border-white/10 bg-white/5" />
+                            <div className="min-w-0">
+                              <p className="font-headline text-on-surface text-sm">{getImageNoteFilename(group.imageSrc)}</p>
+                              <p className="text-[10px] font-tech uppercase tracking-widest text-secondary/40 truncate">{group.notes.length} note{group.notes.length > 1 ? 's' : ''}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            {group.notes.map(note => (
+                              <div key={`admin-image-note-${note.id}`} className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 flex items-start justify-between gap-3">
+                                <div className="min-w-0 space-y-1.5">
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <span className="font-headline text-on-surface text-sm">{note.nickname || 'Guest'}</span>
+                                    <span className="text-[10px] font-tech tracking-widest text-secondary/40 uppercase">{formatReviewDate(note.created_at)}</span>
+                                  </div>
+                                  <p className="text-sm text-secondary leading-relaxed break-words">{note.comment}</p>
+                                </div>
+                                <button type="button" onClick={() => handleDeleteImageNote(note.location_id, note.id)} className="shrink-0 self-start p-2 rounded-lg bg-white/5 hover:bg-red-500/15 hover:text-red-400 text-secondary/50 transition-all cursor-pointer" aria-label="Delete image note">
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
               </>
             )}
           </motion.div>

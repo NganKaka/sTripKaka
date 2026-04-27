@@ -29,6 +29,7 @@ class Location(Base):
     archived_at = Column(DateTime(timezone=True), nullable=True)
 
     reviews = relationship("Review", back_populates="location", cascade="all, delete-orphan")
+    image_notes = relationship("ImageNote", back_populates="location", cascade="all, delete-orphan")
 
 
 class Review(Base):
@@ -51,6 +52,21 @@ class Review(Base):
         if stars is not None and (stars < 0 or stars > 5):
             raise ValueError("stars must be between 0 and 5")
         super().__init__(**kwargs)
+
+
+class ImageNote(Base):
+    __tablename__ = "image_notes"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    location_id = Column(String, ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
+    image_src = Column(Text, nullable=False, index=True)
+    nickname = Column(String(80), nullable=False, default="Guest")
+    comment = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+
+    location = relationship("Location", back_populates="image_notes")
+
+    __mapper_args__ = {"eager_defaults": True}
 
 
 class Notification(Base):

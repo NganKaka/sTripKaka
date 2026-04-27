@@ -91,6 +91,30 @@ class LocationReviewsOut(BaseModel):
     reviews: List[ReviewOut]
 
 
+class ImageNoteCreate(BaseModel):
+    image_src: str
+    nickname: Optional[str] = 'Guest'
+    comment: str = Field(min_length=1, max_length=150)
+
+
+class ImageNoteOut(BaseModel):
+    id: int
+    location_id: str
+    image_src: str
+    nickname: str
+    comment: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ImageNotesOut(BaseModel):
+    total_notes: int = 0
+    remaining_slots: int = 3
+    notes: List[ImageNoteOut]
+
+
 class NotificationOut(BaseModel):
     id: int
     location_id: str

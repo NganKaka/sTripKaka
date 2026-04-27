@@ -39,6 +39,45 @@ interface LocationResponse {
   img?: string;
 }
 
+interface ImageNoteItem {
+  id: number;
+  location_id: string;
+  image_src: string;
+  nickname: string;
+  comment: string;
+  created_at: string;
+}
+
+interface ImageNotesResponse {
+  total_notes: number;
+  remaining_slots: number;
+  notes: ImageNoteItem[];
+}
+
+interface ActiveGalleryImage {
+  src: string;
+  alt: string;
+}
+
+const MAX_IMAGE_NOTES = 3;
+
+
+const formatImageNoteDate = (iso: string) => {
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('en-GB');
+}
+
+const sanitizeImageNoteInput = (value: string) => value.replace(/\r\n/g, '\n');
+
+const getImageNotePreviewLabel = (src: string) => src.split('/').pop() || 'Image';
+
+const getImageNoteStorageKey = (locationId: string, src: string) => `${locationId}:${src}`;
+
+const isImageNoteFormVisible = (totalNotes: number) => totalNotes < MAX_IMAGE_NOTES;
+
+const getImageNoteRemainingLabel = (remaining: number) => remaining === 1 ? '1 slot left' : `${remaining} slots left`;
+
 const normalizeNodeImages = (images: string[] = []): [string, string, string] => [images[0] || '', images[1] || '', images[2] || ''];
 
 const BANNED_REVIEW_WORDS = [
@@ -175,8 +214,14 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
   const [heroHeadline, setHeroHeadline] = useState('Golden Hour Escape');
   const [heroLocationName, setHeroLocationName] = useState('Phu Quoc');
   const [loading, setLoading] = useState(true);
-  const [activeImage, setActiveImage] = useState<string | null>(null);
-  const [activeImageAlt, setActiveImageAlt] = useState('');
+  const [activeImage, setActiveImage] = useState<ActiveGalleryImage | null>(null);
+  const [imageNotes, setImageNotes] = useState<ImageNoteItem[]>([]);
+  const [imageNotesLoading, setImageNotesLoading] = useState(false);
+  const [imageNoteComment, setImageNoteComment] = useState('');
+  const [imageNoteSubmitting, setImageNoteSubmitting] = useState(false);
+  const [imageNoteError, setImageNoteError] = useState('');
+  const [imageNoteTotal, setImageNoteTotal] = useState(0);
+  const [imageNoteRemainingSlots, setImageNoteRemainingSlots] = useState(MAX_IMAGE_NOTES);
 
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [averageStars, setAverageStars] = useState(5);
@@ -217,7 +262,11 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
   useEffect(() => {
     setLoading(true);
     setActiveImage(null);
-    setActiveImageAlt('');
+    setImageNotes([]);
+    setImageNoteError('');
+    setImageNoteComment('');
+    setImageNoteTotal(0);
+    setImageNoteRemainingSlots(MAX_IMAGE_NOTES);
     setShowAllReviews(false);
     setStars(5);
     setNickname('Guest');
@@ -268,11 +317,25 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
   useEffect(() => {
     if (!activeImage) return;
 
+    setImageNotes([]);
+    setImageNoteError('');
+    setImageNoteComment('');
+    setImageNoteTotal(0);
+    setImageNoteRemainingSlots(MAX_IMAGE_NOTES);
+    setImageNotesLoading(true);
+
+    fetch(apiUrl(`/locations/${locationId}/image-notes?image_src=${encodeURIComponent(activeImage.src)}`))
+      .then(res => { if (!res.ok) throw new Error(); return res.json(); })
+      .then((data: ImageNotesResponse) => {
+        setImageNotes(Array.isArray(data.notes) ? data.notes : []);
+        setImageNoteTotal(typeof data.total_notes === 'number' ? data.total_notes : 0);
+        setImageNoteRemainingSlots(typeof data.remaining_slots === 'number' ? data.remaining_slots : MAX_IMAGE_NOTES);
+      })
+      .catch(() => { setImageNotes([]); })
+      .finally(() => setImageNotesLoading(false));
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setActiveImage(null);
-        setActiveImageAlt('');
-      }
+      if (event.key === 'Escape') setActiveImage(null);
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -282,7 +345,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
       window.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = '';
     };
-  }, [activeImage]);
+  }, [activeImage, locationId]);
 
   useEffect(() => {
     const rawTarget = localStorage.getItem('reviewTarget');
@@ -307,14 +370,61 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
   }, [locationId, reviews]);
 
   const openImageModal = (src: string, alt: string) => {
-    setActiveImage(src);
-    setActiveImageAlt(alt);
+    setActiveImage({ src, alt });
   };
 
   const closeImageModal = () => {
     setActiveImage(null);
-    setActiveImageAlt('');
   };
+
+  const handleSubmitImageNote = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeImage) return;
+    const trimmedComment = imageNoteComment.trim();
+    if (!trimmedComment) {
+      setImageNoteError('Note is required.');
+      return;
+    }
+    if (trimmedComment.length > 150) {
+      setImageNoteError('Note must be at most 150 characters.');
+      return;
+    }
+
+    setImageNoteSubmitting(true);
+    setImageNoteError('');
+
+    fetch(apiUrl(`/locations/${locationId}/image-notes`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_src: activeImage.src,
+        nickname: 'Guest',
+        comment: sanitizeImageNoteInput(trimmedComment),
+      }),
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.detail || 'Failed to submit note');
+        }
+        return res.json();
+      })
+      .then((data: ImageNotesResponse) => {
+        setImageNotes(Array.isArray(data.notes) ? data.notes : []);
+        setImageNoteTotal(typeof data.total_notes === 'number' ? data.total_notes : 0);
+        setImageNoteRemainingSlots(typeof data.remaining_slots === 'number' ? data.remaining_slots : 0);
+        setImageNoteComment('');
+      })
+      .catch(err => setImageNoteError(err.message || 'Submit failed'))
+      .finally(() => setImageNoteSubmitting(false));
+  };
+
+  const visibleModalNotes = imageNotes;
+  const isImageNoteSubmitDisabled = imageNoteSubmitting || !imageNoteComment.trim() || !isImageNoteFormVisible(imageNoteTotal);
+  const imageNoteCountLabel = `${imageNoteTotal}/${MAX_IMAGE_NOTES}`;
+  const canShowImageNoteForm = isImageNoteFormVisible(imageNoteTotal);
+  const activeImageDisplayAlt = activeImage?.alt || '';
+  const activeImageDisplaySrc = activeImage?.src || '';
 
   const handleSelectStar = (value: number) => {
     if (value === 1 && stars === 1) {
@@ -631,7 +741,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 16 }}
               transition={{ duration: 0.24, ease: 'easeOut' }}
-              className="relative z-10 w-full max-w-5xl rounded-3xl border border-white/10 bg-surface/80 p-3 md:p-4 shadow-[0_25px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+              className="relative z-10 w-full max-w-7xl rounded-3xl border border-white/10 bg-surface/80 p-2.5 md:p-3 shadow-[0_25px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
               onClick={(event) => event.stopPropagation()}
             >
               <button
@@ -642,8 +752,70 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
               >
                 <ArrowLeft size={18} className="rotate-45" />
               </button>
-              <div className="overflow-hidden rounded-[1.25rem]">
-                <FadeInImage src={activeImage} alt={activeImageAlt} loading="eager" decoding="async" className="max-h-[80vh] w-full object-contain bg-black/20" />
+
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-3 items-start">
+                <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20">
+                  <FadeInImage src={activeImageDisplaySrc} alt={activeImageDisplayAlt} loading="eager" decoding="async" className="max-h-[84vh] w-full object-contain" />
+                </div>
+
+                <motion.aside
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.08, duration: 0.25, ease: 'easeOut' }}
+                  className="rounded-2xl bg-transparent p-0 space-y-3 max-h-[84vh] overflow-y-auto"
+                >
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em]">Story Notes</span>
+                    <span className="text-[10px] font-tech text-secondary/50">{imageNoteCountLabel}</span>
+                  </div>
+
+                  {imageNotesLoading ? (
+                    <div className="px-2 py-8 text-center text-secondary/40 text-xs font-tech uppercase tracking-widest">Loading...</div>
+                  ) : visibleModalNotes.length === 0 ? (
+                    <div className="px-2 py-8 text-center text-secondary/40 text-xs">No notes yet.</div>
+                  ) : (
+                    <div className="space-y-2 px-1">
+                      {visibleModalNotes.map(note => (
+                        <motion.div
+                          key={`image-note-${note.id}`}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="rounded-2xl bg-white/[0.06] border border-white/[0.08] px-3 py-2.5"
+                        >
+                          <p className="text-[13px] text-on-surface/90 leading-relaxed break-words">{maskBannedWords(note.comment)}</p>
+                          <span className="text-[10px] text-secondary/40 font-tech mt-1 block">{formatImageNoteDate(note.created_at)}</span>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+
+                  {canShowImageNoteForm ? (
+                    <form onSubmit={handleSubmitImageNote} className="px-1 space-y-2">
+                      <textarea
+                        value={imageNoteComment}
+                        onChange={(event) => setImageNoteComment(event.target.value)}
+                        rows={3}
+                        maxLength={150}
+                        placeholder="Write a note..."
+                        className="w-full bg-white/[0.06] border border-white/10 rounded-2xl px-3 py-2.5 text-sm text-on-surface placeholder:text-secondary/40 focus:outline-none focus:border-primary/50 transition-colors resize-none"
+                      />
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-secondary/40 font-tech">{imageNoteComment.length}/150</span>
+                        <button
+                          type="submit"
+                          disabled={isImageNoteSubmitDisabled}
+                          className="px-4 py-1.5 rounded-full border border-primary/40 text-primary font-headline text-[10px] uppercase tracking-[0.15em] hover:bg-primary/10 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {imageNoteSubmitting ? '...' : 'Post'}
+                        </button>
+                      </div>
+                      {imageNoteError && <p className="text-rose-300 text-xs">{imageNoteError}</p>}
+                    </form>
+                  ) : (
+                    <p className="px-1 text-xs text-secondary/50">Max 3 notes reached.</p>
+                  )}
+                </motion.aside>
               </div>
             </motion.div>
           </motion.div>
