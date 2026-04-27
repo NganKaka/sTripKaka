@@ -11,7 +11,9 @@
       "Bash(yarn *)",
       "Bash(powershell *)",
       "Bash(python *)",
-      "PowerShell(Get-Content *)"
+      "PowerShell(Get-Content *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} time=%{time_total}s\\\\n\" -H \"Origin: https://s-trip-kaka.vercel.app\" \"https://stripkaka-backend.onrender.com/api/locations\")",
+      "Bash(curl *)"
     ]
   }
 }

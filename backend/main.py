@@ -47,7 +47,15 @@ if HAS_CLOUDINARY_CONFIG:
 # â”€â”€ CORS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://s-trip-kaka.vercel.app", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3001", "http://localhost:3000"],
+    allow_origins=[
+        "https://s-trip-kaka.vercel.app",
+        "https://www.s-trip-kaka.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3001",
+        "http://localhost:3000",
+    ],
+    allow_origin_regex=r"https://s-trip-kaka-.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
