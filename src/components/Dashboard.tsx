@@ -300,7 +300,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
               transition={{ duration: 6, ease: "easeInOut", repeat: Infinity }}
               className="w-48 h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
             >
-              <img src="/landing_img_2.jpg" className="w-full h-[123%] object-cover" referrerPolicy="no-referrer"/>
+              <img src="/full_body.png" className="w-full h-[123%] object-cover" referrerPolicy="no-referrer"/>
             </motion.div>
           </motion.div>
 
@@ -320,7 +320,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
               transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
               className="w-40 h-40 rounded-full overflow-hidden shadow-2xl border-4 border-background"
             >
-              <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=600" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
+              <img src="/landing_img_2.png" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
             </motion.div>
           </motion.div>
         </div>
