@@ -103,11 +103,15 @@ const HIGHLIGHT_TYPES = [
   { value: 'highlight', label: 'Highlight', color: 'text-cyan-300' },
 ];
 
+const GALLERY_TAG_SUGGESTIONS = ['sunset', 'food', 'adventure', 'chill', 'couple', 'family'];
+const MAX_TAGS_PER_IMAGE = 8;
+
 type GalleryNode = {
   uid: string;
   title: string;
   description: string;
   images: [string, string, string];
+  image_tags: [string[], string[], string[]];
 };
 
 type Location = {
@@ -176,6 +180,7 @@ const createEmptyNode = (): GalleryNode => ({
   title: '',
   description: '',
   images: ['', '', ''],
+  image_tags: [[], [], []],
 });
 
 const createDefaultNodes = (): GalleryNode[] => [createEmptyNode(), createEmptyNode(), createEmptyNode()];
@@ -219,11 +224,24 @@ function swapItems<T>(items: T[], from: number, to: number): T[] {
 }
 
 function normalizeNode(node: any): GalleryNode {
+  const normalizeTags = (tags: any): [string[], string[], string[]] => {
+    const normalized = [0, 1, 2].map(index => {
+      const current = tags?.[index];
+      if (!Array.isArray(current)) return [];
+      return current
+        .filter((tag: unknown): tag is string => typeof tag === 'string')
+        .map(tag => tag.trim())
+        .filter(Boolean);
+    });
+    return normalized as [string[], string[], string[]];
+  };
+
   return {
     uid: node?.uid || createNodeUid(),
     title: node?.title || '',
     description: node?.description || '',
     images: [node?.images?.[0] || '', node?.images?.[1] || '', node?.images?.[2] || ''],
+    image_tags: normalizeTags(node?.image_tags),
   };
 }
 
@@ -231,7 +249,7 @@ function nodesFromLegacyImages(images: string[] = []): GalleryNode[] {
   if (!images.length) return createDefaultNodes();
   const nodes: GalleryNode[] = [];
   for (let i = 0; i < images.length; i += 3) {
-    nodes.push({ uid: createNodeUid(), title: `Node ${nodes.length + 1}`, description: '', images: [images[i] || '', images[i + 1] || '', images[i + 2] || ''] });
+    nodes.push({ uid: createNodeUid(), title: `Node ${nodes.length + 1}`, description: '', images: [images[i] || '', images[i + 1] || '', images[i + 2] || ''], image_tags: [[], [], []] });
   }
   return nodes;
 }
@@ -394,7 +412,7 @@ function normalizeLocationFromApi(loc: any): Location {
 
 function buildLocationPayload(form: Location) {
   const featured = normalizeFeaturedImages(form.featured_images);
-  const galleryNodes = form.gallery_nodes.map(({ title, description, images }) => ({ title, description, images }));
+  const galleryNodes = form.gallery_nodes.map(({ title, description, images, image_tags }) => ({ title, description, images, image_tags }));
   const galleryImages = flattenNodeImages(form.gallery_nodes);
 
   return {
@@ -801,6 +819,8 @@ function StoryMarkdownEditor({ value, onChange }: { value: string; onChange: (va
 }
 
 function GalleryNodesInput({ nodes, onChange }: { nodes: GalleryNode[]; onChange: (updater: (nodes: GalleryNode[]) => GalleryNode[]) => void; }) {
+  const [pendingTagBySlot, setPendingTagBySlot] = useState<Record<string, string>>({});
+
   const updateNode = (uid: string, patch: Partial<GalleryNode>) => {
     onChange(currentNodes => currentNodes.map(node => node.uid === uid ? { ...node, ...patch } : node));
   };
@@ -814,11 +834,45 @@ function GalleryNodesInput({ nodes, onChange }: { nodes: GalleryNode[]; onChange
     }));
   };
 
+  const updateNodeImageTags = (nodeUid: string, imageIndex: number, nextTags: string[]) => {
+    onChange(currentNodes => currentNodes.map(node => {
+      if (node.uid !== nodeUid) return node;
+      const image_tags = node.image_tags.map((tags, currentIndex) => currentIndex === imageIndex ? nextTags : tags) as [string[], string[], string[]];
+      return { ...node, image_tags };
+    }));
+  };
+
+  const addNodeImageTag = (nodeUid: string, imageIndex: number) => {
+    const key = `${nodeUid}-${imageIndex}`;
+    const rawValue = pendingTagBySlot[key] || '';
+    const nextTag = rawValue.trim();
+    if (!nextTag) return;
+
+    onChange(currentNodes => currentNodes.map(node => {
+      if (node.uid !== nodeUid) return node;
+      const currentTags = node.image_tags[imageIndex] || [];
+      if (currentTags.includes(nextTag)) return node;
+      const image_tags = node.image_tags.map((tags, currentIndex) => currentIndex === imageIndex ? [...tags, nextTag] : tags) as [string[], string[], string[]];
+      return { ...node, image_tags };
+    }));
+
+    setPendingTagBySlot(current => ({ ...current, [key]: '' }));
+  };
+
+  const removeNodeImageTag = (nodeUid: string, imageIndex: number, tagToRemove: string) => {
+    onChange(currentNodes => currentNodes.map(node => {
+      if (node.uid !== nodeUid) return node;
+      const image_tags = node.image_tags.map((tags, currentIndex) => currentIndex === imageIndex ? tags.filter(tag => tag !== tagToRemove) : tags) as [string[], string[], string[]];
+      return { ...node, image_tags };
+    }));
+  };
+
   const moveNodeImage = (nodeUid: string, imageIndex: number, direction: -1 | 1) => {
     onChange(currentNodes => currentNodes.map(node => {
       if (node.uid !== nodeUid) return node;
-      const next = swapItems(node.images, imageIndex, imageIndex + direction) as [string, string, string];
-      return { ...node, images: next };
+      const images = swapItems(node.images, imageIndex, imageIndex + direction) as [string, string, string];
+      const image_tags = swapItems(node.image_tags, imageIndex, imageIndex + direction) as [string[], string[], string[]];
+      return { ...node, images, image_tags };
     }));
   };
 
@@ -886,6 +940,73 @@ function GalleryNodesInput({ nodes, onChange }: { nodes: GalleryNode[]; onChange
                           </div>
                         )}
                       />
+
+                      <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.02] p-2.5 space-y-2">
+                        <p className="text-[10px] font-tech uppercase tracking-widest text-secondary/40">Tags</p>
+
+                        {node.image_tags[imageIndex]?.length ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {node.image_tags[imageIndex].map(tag => (
+                              <button
+                                key={`${node.uid}-${imageIndex}-${tag}`}
+                                type="button"
+                                onClick={() => removeNodeImageTag(node.uid, imageIndex, tag)}
+                                className="px-2 py-1 rounded-full border border-primary/30 bg-primary/15 text-primary text-[10px] font-tech uppercase tracking-wider hover:bg-primary/25 transition-all cursor-pointer"
+                                title="Remove tag"
+                              >
+                                {tag} ×
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-secondary/35">No tags yet.</p>
+                        )}
+
+                        <div className="flex flex-wrap gap-1.5">
+                          {GALLERY_TAG_SUGGESTIONS.map(tag => {
+                            const isSelected = node.image_tags[imageIndex]?.includes(tag);
+                            return (
+                              <button
+                                key={`${node.uid}-${imageIndex}-suggestion-${tag}`}
+                                type="button"
+                                disabled={isSelected}
+                                onClick={() => updateNodeImageTags(node.uid, imageIndex, [...(node.image_tags[imageIndex] || []), tag].slice(0, MAX_TAGS_PER_IMAGE))}
+                                className="px-2 py-1 rounded-full border border-white/10 bg-white/5 text-secondary/60 text-[10px] font-tech uppercase tracking-wider hover:text-primary hover:border-primary/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex gap-2 w-full min-w-0">
+                          <input
+                            value={pendingTagBySlot[`${node.uid}-${imageIndex}`] || ''}
+                            onChange={e => setPendingTagBySlot(current => ({ ...current, [`${node.uid}-${imageIndex}`]: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if ((node.image_tags[imageIndex] || []).length >= MAX_TAGS_PER_IMAGE) return;
+                                addNodeImageTag(node.uid, imageIndex);
+                              }
+                            }}
+                            placeholder="Add custom tag"
+                            className="min-w-0 flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface placeholder:text-secondary/30 focus:outline-none focus:border-primary/40"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if ((node.image_tags[imageIndex] || []).length >= MAX_TAGS_PER_IMAGE) return;
+                              addNodeImageTag(node.uid, imageIndex);
+                            }}
+                            className="shrink-0 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-[10px] font-tech uppercase tracking-widest text-secondary/70 hover:text-primary hover:border-primary/30 transition-all cursor-pointer"
+                          >
+                            Add
+                          </button>
+                        </div>
+
+                        <p className="text-[10px] text-secondary/30">{(node.image_tags[imageIndex] || []).length}/{MAX_TAGS_PER_IMAGE} tags</p>
+                      </div>
                     </Field>
                   </motion.div>
                 ))}

@@ -30,6 +30,7 @@ class Location(Base):
 
     reviews = relationship("Review", back_populates="location", cascade="all, delete-orphan")
     image_notes = relationship("ImageNote", back_populates="location", cascade="all, delete-orphan")
+    views = relationship("LocationView", back_populates="location", cascade="all, delete-orphan")
 
 
 class Review(Base):
@@ -66,6 +67,20 @@ class ImageNote(Base):
 
     location = relationship("Location", back_populates="image_notes")
     notifications = relationship("Notification", back_populates="image_note", cascade="all, delete-orphan")
+
+    __mapper_args__ = {"eager_defaults": True}
+
+
+class LocationView(Base):
+    __tablename__ = "location_views"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    location_id = Column(String, ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
+    view_type = Column(String(32), nullable=False, index=True)
+    viewer_key = Column(String(120), nullable=True, index=True)
+    viewed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+
+    location = relationship("Location", back_populates="views")
 
     __mapper_args__ = {"eager_defaults": True}
 

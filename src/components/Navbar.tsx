@@ -11,7 +11,8 @@ interface NavbarProps {
 interface NotificationItem {
   id: number;
   location_id: string;
-  review_id: number;
+  review_id: number | null;
+  image_note_id?: number | null;
   title: string;
   message: string;
   is_read: boolean;
@@ -120,7 +121,11 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
   }, []);
 
   const handleNotificationClick = (item: NotificationItem) => {
-    localStorage.setItem('reviewTarget', `${item.location_id}:${item.review_id}`);
+    if (item.review_id) {
+      localStorage.setItem('reviewTarget', `${item.location_id}:${item.review_id}`);
+    } else {
+      localStorage.removeItem('reviewTarget');
+    }
     setOpen(false);
     setActiveTab(`Gallery:${item.location_id}`);
   };

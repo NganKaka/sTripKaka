@@ -1,7 +1,7 @@
 import { motion, useScroll, useSpring, useInView } from 'framer-motion';
 import { MapPin, Sun, Camera, ArrowRight, Quote, ArrowLeft } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { apiUrl } from '../lib/api';
+import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
 import { useMusic } from '../contexts/MusicContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -270,6 +270,9 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
 
   useEffect(() => {
     setLoading(true);
+    pushRecentView(locationId);
+    trackLocationView(locationId, 'mission_detail');
+
     fetch(apiUrl(`/locations/${locationId}`))
       .then(res => { if (!res.ok) throw new Error('Not found'); return res.json(); })
       .then((data: LocationApiResponse) => {

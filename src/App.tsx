@@ -9,6 +9,7 @@ import TripDetail from './components/TripDetail';
 import Archives from './components/Archives';
 import Constellations from './components/Constellations';
 import AdminPanel from './components/AdminPanel';
+import Stats from './components/Stats';
 import { useMusic } from './contexts/MusicContext';
 
 function MusicPlayerHUD() {
@@ -136,11 +137,7 @@ export default function App() {
             {activeTab === 'Gallery' && <GalleryView setActiveTab={setActiveTab} locationId={locationId} />}
             {activeTab === 'Destinations' && <TripDetail setActiveTab={setActiveTab} locationId={locationId} />}
             {activeTab === 'Admin' && <AdminPanel />}
-            {activeTab === 'Stats' && (
-              <div className="flex items-center justify-center py-40">
-                <p className="text-secondary font-headline uppercase tracking-widest opacity-50">Exploration Metrics Coming Soon</p>
-              </div>
-            )}
+            {activeTab === 'Stats' && <Stats setActiveTab={setActiveTab} />}
           </motion.div>
         </AnimatePresence>
       </main>

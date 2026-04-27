@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Dict, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import hashlib
 import os
 import re
@@ -74,6 +74,18 @@ def _normalize_node_images(images: Optional[List[str]]) -> List[str]:
     return arr
 
 
+def _normalize_node_image_tags(image_tags: Optional[List[List[str]]]) -> List[List[str]]:
+    normalized = []
+    for tags in (image_tags or [])[:3]:
+        if isinstance(tags, list):
+            normalized.append([tag.strip() for tag in tags if isinstance(tag, str) and tag.strip()])
+        else:
+            normalized.append([])
+    if len(normalized) < 3:
+        normalized += [[] for _ in range(3 - len(normalized))]
+    return normalized
+
+
 def _build_gallery_nodes(gallery_nodes, gallery_images: Optional[List[str]]):
     if gallery_nodes and isinstance(gallery_nodes, list):
         normalized_nodes = []
@@ -84,6 +96,7 @@ def _build_gallery_nodes(gallery_nodes, gallery_images: Optional[List[str]]):
                 "title": node.get("title", ""),
                 "description": node.get("description", ""),
                 "images": _normalize_node_images(node.get("images", [])),
+                "image_tags": _normalize_node_image_tags(node.get("image_tags", [])),
             })
         if normalized_nodes:
             return normalized_nodes
@@ -99,6 +112,7 @@ def _build_gallery_nodes(gallery_nodes, gallery_images: Optional[List[str]]):
             "title": f"Node {len(nodes) + 1}",
             "description": "",
             "images": _normalize_node_images(chunk),
+            "image_tags": _normalize_node_image_tags([]),
         })
     return nodes
 
@@ -488,6 +502,53 @@ def _build_notifications_response(db: Session, limit: int = 30):
     }
 
 
+def _normalize_view_type_or_fail(view_type: str) -> str:
+    normalized = (view_type or "").strip().lower()
+    if normalized not in {"mission_detail", "gallery"}:
+        raise HTTPException(status_code=400, detail="view_type must be mission_detail or gallery")
+    return normalized
+
+
+def _normalize_viewer_key(viewer_key: Optional[str]) -> Optional[str]:
+    normalized = (viewer_key or "").strip()
+    return normalized[:120] or None
+
+
+def _serialize_location_with_weekly_views(db: Session, loc: models.Location, weekly_views: int, request: Optional[Request] = None):
+    data = _serialize_location_with_aggregate(db, loc, request)
+    data["weekly_views"] = int(weekly_views)
+    return data
+
+
+def _build_popular_this_week_response(db: Session, request: Request, limit: int = 6):
+    normalized_limit = max(1, min(limit, 12))
+    since = datetime.now(timezone.utc) - timedelta(days=7)
+    rows = (
+        db.query(
+            models.LocationView.location_id,
+            func.count(models.LocationView.id).label("weekly_views"),
+        )
+        .join(models.Location, models.Location.id == models.LocationView.location_id)
+        .filter(models.Location.is_archived == 0, models.LocationView.viewed_at >= since)
+        .group_by(models.LocationView.location_id)
+        .order_by(func.count(models.LocationView.id).desc(), models.LocationView.location_id.asc())
+        .limit(normalized_limit)
+        .all()
+    )
+    if not rows:
+        return {"items": []}
+
+    locations = db.query(models.Location).filter(models.Location.id.in_([row.location_id for row in rows])).all()
+    location_map = {loc.id: loc for loc in locations}
+    return {
+        "items": [
+            _serialize_location_with_weekly_views(db, location_map[row.location_id], int(row.weekly_views or 0), request)
+            for row in rows
+            if row.location_id in location_map
+        ]
+    }
+
+
 def _normalize_location_payload(payload: dict, for_patch: bool = False, existing_location: Optional[models.Location] = None) -> dict:
     normalized = dict(payload)
 
@@ -566,6 +627,32 @@ def get_locations_paginated(
 def get_location_by_id(request: Request, location_id: str, include_archived: Optional[str] = None, db: Session = Depends(get_db)):
     location = _ensure_location_exists(db, location_id, include_archived=_parse_include_archived_flag(include_archived))
     return _serialize_location_with_aggregate(db, location, request)
+
+
+@app.post("/api/locations/{location_id}/views", tags=["Stats"])
+def create_location_view(location_id: str, payload: schemas.LocationViewCreate, db: Session = Depends(get_db)):
+    _ensure_location_exists(db, location_id)
+    view_type = _normalize_view_type_or_fail(payload.view_type)
+    viewer_key = _normalize_viewer_key(payload.viewer_key)
+
+    if viewer_key:
+        recent_since = datetime.now(timezone.utc) - timedelta(minutes=30)
+        existing = (
+            db.query(models.LocationView.id)
+            .filter(
+                models.LocationView.location_id == location_id,
+                models.LocationView.view_type == view_type,
+                models.LocationView.viewer_key == viewer_key,
+                models.LocationView.viewed_at >= recent_since,
+            )
+            .first()
+        )
+        if existing is not None:
+            return {"ok": True, "deduped": True}
+
+    db.add(models.LocationView(location_id=location_id, view_type=view_type, viewer_key=viewer_key))
+    db.commit()
+    return {"ok": True, "deduped": False}
 
 
 @app.post("/api/locations", response_model=schemas.LocationOut, status_code=201, tags=["Locations"])
@@ -852,3 +939,8 @@ def get_stats(db: Session = Depends(get_db)):
             for ht in ("primary", "secondary", "highlight")
         },
     )
+
+
+@app.get("/api/stats/popular-this-week", response_model=schemas.PopularWeeklyOut, tags=["Stats"])
+def get_popular_this_week(request: Request, limit: int = 6, db: Session = Depends(get_db)):
+    return _build_popular_this_week_response(db, request, limit)

@@ -1,13 +1,14 @@
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { Mountain, ArrowLeft, Star } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { apiUrl } from '../lib/api';
+import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
 import { useMusic } from '../contexts/MusicContext';
 
 type GalleryNode = {
   title: string;
   description: string;
   images: [string, string, string];
+  image_tags: [string[], string[], string[]];
 };
 
 interface GalleryViewProps {
@@ -110,11 +111,26 @@ const maskBannedWords = (comment: string) => {
   });
 };
 
-const normalizeNode = (node: any): GalleryNode => ({
-  title: node?.title || '',
-  description: node?.description || '',
-  images: normalizeNodeImages(node?.images || []),
-});
+const normalizeNode = (node: any): GalleryNode => {
+  const normalizeTags = (tags: any): [string[], string[], string[]] => {
+    const normalized = [0, 1, 2].map(index => {
+      const current = tags?.[index];
+      if (!Array.isArray(current)) return [];
+      return current
+        .filter((tag: unknown): tag is string => typeof tag === 'string')
+        .map(tag => tag.trim())
+        .filter(Boolean);
+    });
+    return normalized as [string[], string[], string[]];
+  };
+
+  return {
+    title: node?.title || '',
+    description: node?.description || '',
+    images: normalizeNodeImages(node?.images || []),
+    image_tags: normalizeTags(node?.image_tags),
+  };
+};
 
 const nodesFromLegacyImages = (images: string[] = []): GalleryNode[] => {
   if (!images.length) return [];
@@ -124,6 +140,7 @@ const nodesFromLegacyImages = (images: string[] = []): GalleryNode[] => {
       title: `Node ${nodes.length + 1}`,
       description: '',
       images: normalizeNodeImages(images.slice(i, i + 3)),
+      image_tags: [[], [], []],
     });
   }
   return nodes;
@@ -234,10 +251,13 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState('');
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const reviewSectionRef = useRef<HTMLElement | null>(null);
 
   const content = LOCATION_CONTENT[locationId] || DEFAULT_CONTENT;
   const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 3);
+  const availableTags = Array.from(new Set(nodes.flatMap(node => node.image_tags.flat()))).sort();
+  const hasTagFilters = availableTags.length > 0;
 
   const fetchReviews = () => {
     setReviewLoading(true);
@@ -268,10 +288,13 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
     setImageNoteTotal(0);
     setImageNoteRemainingSlots(MAX_IMAGE_NOTES);
     setShowAllReviews(false);
+    setActiveTag(null);
     setStars(5);
     setNickname('Guest');
     setComment('');
     setReviewError('');
+    pushRecentView(locationId);
+    trackLocationView(locationId, 'gallery');
 
     fetch(apiUrl(`/locations/${locationId}`))
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
@@ -517,7 +540,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
 
   const resetStarPreview = () => setHoverStars(null);
 
-  const renderGalleryImage = (src: string, alt: string, heightClass: string) => (
+  const renderGalleryImage = (src: string, alt: string, heightClass: string, tags: string[] = []) => (
     <motion.button
       type="button"
       whileHover={{ y: -4 }}
@@ -536,6 +559,15 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
       <div className="absolute bottom-5 right-5 px-3 py-1.5 rounded-full bg-background/75 border border-white/10 text-[10px] font-tech uppercase tracking-[0.2em] text-cyan-200 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300 pointer-events-none backdrop-blur-md">
         View
       </div>
+      {tags.length > 0 && (
+        <div className="absolute left-4 bottom-4 flex flex-wrap gap-1.5 max-w-[75%] pointer-events-none">
+          {tags.slice(0, 4).map(tag => (
+            <span key={`${src}-${tag}`} className="px-2 py-1 rounded-full border border-white/15 bg-background/70 text-[9px] font-tech uppercase tracking-[0.15em] text-cyan-100 backdrop-blur-md">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
     </motion.button>
   );
 
@@ -602,14 +634,54 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
         </div>
       ) : (
         <>
+          {hasTagFilters && (
+            <div className="pl-16 md:pl-28">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTag(null)}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-tech uppercase tracking-wider border transition-all cursor-pointer ${
+                    activeTag === null
+                      ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
+                      : 'border-white/15 bg-white/5 text-secondary/60 hover:text-secondary hover:border-white/30'
+                  }`}
+                >
+                  All
+                </button>
+                {availableTags.map(tag => (
+                  <button
+                    key={`tag-filter-${tag}`}
+                    type="button"
+                    onClick={() => setActiveTag(current => current === tag ? null : tag)}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-tech uppercase tracking-wider border transition-all cursor-pointer ${
+                      activeTag === tag
+                        ? 'border-primary/60 bg-primary/20 text-primary'
+                        : 'border-white/15 bg-white/5 text-secondary/60 hover:text-secondary hover:border-white/30'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {nodes.map((node, index) => {
-            const [img1, img2, img3] = node.images;
             const hasImages = node.images.some(Boolean);
             if (!hasImages) return null;
+
+            if (activeTag !== null) {
+              const nodeMatchesTag = node.images.some((img, imgIndex) => img && node.image_tags[imgIndex]?.includes(activeTag));
+              if (!nodeMatchesTag) return null;
+            }
 
             const isEven = index % 2 === 0;
             const textColumnClass = isEven ? 'lg:col-span-4 lg:order-1' : 'lg:col-span-4 lg:order-2';
             const imageColumnClass = isEven ? 'lg:col-span-8 lg:order-2' : 'lg:col-span-8 lg:order-1';
+
+            const img1 = activeTag === null || node.image_tags[0]?.includes(activeTag) ? node.images[0] : '';
+            const img2 = activeTag === null || node.image_tags[1]?.includes(activeTag) ? node.images[1] : '';
+            const img3 = activeTag === null || node.image_tags[2]?.includes(activeTag) ? node.images[2] : '';
 
             return (
               <section key={`gallery-node-${index}`} className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24 items-start pl-16 md:pl-28 relative">
@@ -627,11 +699,11 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
                 </div>
                 <div className={`${imageColumnClass} grid grid-cols-1 md:grid-cols-2 gap-6 z-10`}>
                   <div className="space-y-6">
-                    {img1 && renderGalleryImage(img1, `${node.title || `Node ${index + 1}`} image 1`, 'h-80')}
-                    {img2 && renderGalleryImage(img2, `${node.title || `Node ${index + 1}`} image 2`, 'h-64')}
+                    {img1 && renderGalleryImage(img1, `${node.title || `Node ${index + 1}`} image 1`, 'h-80', node.image_tags[0])}
+                    {img2 && renderGalleryImage(img2, `${node.title || `Node ${index + 1}`} image 2`, 'h-64', node.image_tags[1])}
                   </div>
                   <div className="space-y-6 md:mt-12">
-                    {img3 && renderGalleryImage(img3, `${node.title || `Node ${index + 1}`} image 3`, 'h-96')}
+                    {img3 && renderGalleryImage(img3, `${node.title || `Node ${index + 1}`} image 3`, 'h-96', node.image_tags[2])}
                   </div>
                 </div>
               </section>

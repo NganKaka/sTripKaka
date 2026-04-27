@@ -7,6 +7,7 @@ class GalleryNode(BaseModel):
     title: str = ''
     description: str = ''
     images: List[str] = Field(default_factory=lambda: ['', '', ''], min_length=3, max_length=3)
+    image_tags: List[List[str]] = Field(default_factory=lambda: [[], [], []])
 
 
 class LocationBase(BaseModel):
@@ -138,6 +139,19 @@ class PaginatedLocations(BaseModel):
     items: List[LocationOut]
     total: int
     has_more: bool
+
+
+class LocationViewCreate(BaseModel):
+    view_type: str = Field(min_length=1, max_length=32)
+    viewer_key: Optional[str] = Field(default=None, max_length=120)
+
+
+class LocationWeeklyViewOut(LocationOut):
+    weekly_views: int = 0
+
+
+class PopularWeeklyOut(BaseModel):
+    items: List[LocationWeeklyViewOut]
 
 
 class StatsOut(BaseModel):
