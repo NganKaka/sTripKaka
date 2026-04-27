@@ -753,7 +753,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
                 <ArrowLeft size={18} className="rotate-45" />
               </button>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-3 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 items-start">
                 <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20">
                   <FadeInImage src={activeImageDisplaySrc} alt={activeImageDisplayAlt} loading="eager" decoding="async" className="max-h-[84vh] w-full object-contain" />
                 </div>
@@ -762,58 +762,63 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.08, duration: 0.25, ease: 'easeOut' }}
-                  className="rounded-2xl bg-transparent p-0 space-y-3 max-h-[84vh] overflow-y-auto"
+                  className="relative flex max-h-[84vh] flex-col overflow-hidden rounded-[1.6rem] border border-white/8 bg-black/18 p-2 backdrop-blur-md"
                 >
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em]">Story Notes</span>
-                    <span className="text-[10px] font-tech text-secondary/50">{imageNoteCountLabel}</span>
+                  <div className="flex items-center justify-between px-2 py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_rgba(233,195,73,0.8)]" />
+                      <span className="text-[10px] font-tech uppercase tracking-[0.22em] text-white/75">Story Notes</span>
+                    </div>
+                    <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-tech text-white/55">{imageNoteCountLabel}</span>
                   </div>
 
-                  {imageNotesLoading ? (
-                    <div className="px-2 py-8 text-center text-secondary/40 text-xs font-tech uppercase tracking-widest">Loading...</div>
-                  ) : visibleModalNotes.length === 0 ? (
-                    <div className="px-2 py-8 text-center text-secondary/40 text-xs">No notes yet.</div>
-                  ) : (
-                    <div className="space-y-2 px-1">
-                      {visibleModalNotes.map(note => (
+                  <div className="flex-1 space-y-2 overflow-y-auto px-1 py-2">
+                    {imageNotesLoading ? (
+                      <div className="px-2 py-8 text-center text-white/35 text-[11px] font-tech uppercase tracking-widest">Loading...</div>
+                    ) : visibleModalNotes.length === 0 ? (
+                      <div className="px-2 py-8 text-center text-white/35 text-xs">No notes yet.</div>
+                    ) : (
+                      visibleModalNotes.map((note, index) => (
                         <motion.div
                           key={`image-note-${note.id}`}
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="rounded-2xl bg-white/[0.06] border border-white/[0.08] px-3 py-2.5"
+                          initial={{ opacity: 0, x: 12, y: 4 }}
+                          animate={{ opacity: 1, x: 0, y: 0 }}
+                          transition={{ duration: 0.22, delay: index * 0.04 }}
+                          className="ml-auto max-w-[92%] rounded-[1.15rem] rounded-br-md border border-white/10 bg-white/10 px-3 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]"
                         >
-                          <p className="text-[13px] text-on-surface/90 leading-relaxed break-words">{maskBannedWords(note.comment)}</p>
-                          <span className="text-[10px] text-secondary/40 font-tech mt-1 block">{formatImageNoteDate(note.created_at)}</span>
+                          <p className="text-[13px] text-white/88 leading-relaxed break-words">{maskBannedWords(note.comment)}</p>
+                          <span className="mt-1.5 block text-[9px] font-tech uppercase tracking-[0.18em] text-white/35">{formatImageNoteDate(note.created_at)}</span>
                         </motion.div>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    )}
+                  </div>
 
                   {canShowImageNoteForm ? (
-                    <form onSubmit={handleSubmitImageNote} className="px-1 space-y-2">
-                      <textarea
-                        value={imageNoteComment}
-                        onChange={(event) => setImageNoteComment(event.target.value)}
-                        rows={3}
-                        maxLength={150}
-                        placeholder="Write a note..."
-                        className="w-full bg-white/[0.06] border border-white/10 rounded-2xl px-3 py-2.5 text-sm text-on-surface placeholder:text-secondary/40 focus:outline-none focus:border-primary/50 transition-colors resize-none"
-                      />
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] text-secondary/40 font-tech">{imageNoteComment.length}/150</span>
-                        <button
-                          type="submit"
-                          disabled={isImageNoteSubmitDisabled}
-                          className="px-4 py-1.5 rounded-full border border-primary/40 text-primary font-headline text-[10px] uppercase tracking-[0.15em] hover:bg-primary/10 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {imageNoteSubmitting ? '...' : 'Post'}
-                        </button>
+                    <form onSubmit={handleSubmitImageNote} className="mt-2 space-y-2 border-t border-white/8 px-1 pt-2">
+                      <div className="overflow-hidden rounded-[1.3rem] border border-white/10 bg-white/8 focus-within:border-primary/45 transition-colors">
+                        <textarea
+                          value={imageNoteComment}
+                          onChange={(event) => setImageNoteComment(event.target.value)}
+                          rows={3}
+                          maxLength={150}
+                          placeholder="Reply to this story..."
+                          className="w-full bg-transparent px-3 py-2.5 text-sm text-white/90 placeholder:text-white/35 focus:outline-none resize-none"
+                        />
+                        <div className="flex items-center justify-between px-3 pb-2">
+                          <span className="text-[9px] font-tech uppercase tracking-[0.16em] text-white/30">{imageNoteComment.length}/150</span>
+                          <button
+                            type="submit"
+                            disabled={isImageNoteSubmitDisabled}
+                            className="rounded-full bg-primary/14 px-3 py-1 text-[10px] font-tech uppercase tracking-[0.18em] text-primary hover:bg-primary/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {imageNoteSubmitting ? '...' : 'Send'}
+                          </button>
+                        </div>
                       </div>
-                      {imageNoteError && <p className="text-rose-300 text-xs">{imageNoteError}</p>}
+                      {imageNoteError && <p className="px-1 text-xs text-rose-300">{imageNoteError}</p>}
                     </form>
                   ) : (
-                    <p className="px-1 text-xs text-secondary/50">Max 3 notes reached.</p>
+                    <p className="mt-2 px-2 text-[11px] text-white/40">Max 3 notes reached.</p>
                   )}
                 </motion.aside>
               </div>
