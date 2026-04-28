@@ -3,6 +3,7 @@ import { Mountain, ArrowLeft, Star } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
 import { useMusic } from '../contexts/MusicContext';
+import FadeInImage from '../lib/FadeInImage';
 
 type GalleryNode = {
   title: string;
@@ -186,38 +187,6 @@ function CircuitNode({ icon: Icon }: { icon: any }) {
     >
       <div className="-rotate-45"><Icon size={20} /></div>
     </motion.div>
-  );
-}
-
-type FadeInImageProps = {
-  src: string;
-  alt: string;
-  className: string;
-  loading?: 'eager' | 'lazy';
-  decoding?: 'sync' | 'async' | 'auto';
-  fetchPriority?: 'high' | 'low' | 'auto';
-};
-
-function FadeInImage({ src, alt, className, loading = 'lazy', decoding = 'async', fetchPriority }: FadeInImageProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    setIsLoaded(false);
-  }, [src]);
-
-  return (
-    <span className={`block transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
-      <img
-        src={src}
-        alt={alt}
-        loading={loading}
-        decoding={decoding}
-        fetchPriority={fetchPriority}
-        onLoad={() => setIsLoaded(true)}
-        onError={() => setIsLoaded(true)}
-        className={className}
-      />
-    </span>
   );
 }
 

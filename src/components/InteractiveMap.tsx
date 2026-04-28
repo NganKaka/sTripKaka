@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import mapboxgl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { apiUrl } from '../lib/api';
@@ -98,41 +98,16 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const mapInitialized = useRef(false);
+  const onOpenExpeditionLogRef = useRef(onOpenExpeditionLog);
+  onOpenExpeditionLogRef.current = onOpenExpeditionLog;
   const [mapLoaded, setMapLoaded] = useState(false);
   const [locations, setLocations] = useState<LocationData[]>([]);
 
-  useEffect(() => {
-    fetch(apiUrl('/locations'))
-      .then(res => res.json())
-      .then((data: DbLocation[]) => {
-        const mapped = Array.isArray(data)
-          ? data
-              .slice()
-              .sort(sortByLatitudeAsc)
-              .map(toMapLocation)
-              .filter((item): item is LocationData => !!item)
-          : [];
-        setLocations(mapped);
-      })
-      .catch(err => {
-        console.error('Error fetching map locations:', err);
-        setLocations([]);
-      });
-  }, []);
+  const initMap = useCallback((locs: LocationData[]) => {
+    if (!mapContainer.current || mapInitialized.current || !locs.length) return;
 
-  useEffect(() => {
-    if (!mapContainer.current) return;
-    if (!locations.length) {
-      setMapLoaded(true);
-      return;
-    }
-
-    if (map.current) {
-      map.current.remove();
-      map.current = null;
-    }
-
-    map.current = new mapboxgl.Map({
+    const newMap = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
       center: [106.5, 16.0],
@@ -145,14 +120,13 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
       dragRotate: false,
     });
 
-    map.current.addControl(
+    newMap.addControl(
       new mapboxgl.NavigationControl({ showCompass: false, showZoom: true }),
       'top-right'
     );
 
-    map.current.on('load', () => {
-      const m = map.current!;
-      setMapLoaded(true);
+    newMap.on('load', () => {
+      const m = newMap;
 
       m.addSource('vietnam', {
         type: 'geojson',
@@ -162,12 +136,12 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
       m.addLayer({ id: 'vietnam-border-glow', type: 'line', source: 'vietnam', paint: { 'line-color': '#22d3ee', 'line-width': 4, 'line-blur': 4, 'line-opacity': 0.15 } });
       m.addLayer({ id: 'vietnam-border', type: 'line', source: 'vietnam', paint: { 'line-color': '#22d3ee', 'line-width': 1, 'line-opacity': 0.4 } });
 
-      const routeGeoJSON = buildRouteGeoJSON(locations);
+      const routeGeoJSON = buildRouteGeoJSON(locs);
       m.addSource('route', { type: 'geojson', data: routeGeoJSON });
       m.addLayer({ id: 'route-glow', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#e9c349', 'line-width': 8, 'line-opacity': 0.12, 'line-blur': 8 } });
       m.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#e9c349', 'line-width': 1.5, 'line-opacity': 0.6, 'line-dasharray': [2, 4] } });
 
-      locations.forEach((loc, idx) => {
+      locs.forEach((loc, idx) => {
         const color = loc.type === 'highlight' ? '#22d3ee' : loc.type === 'primary' ? '#e9c349' : '#bbc9d0';
         const fillOpacity = loc.type === 'highlight' ? 0.15 : loc.type === 'primary' ? 0.10 : 0.07;
         const circleId = `circle-${idx}`;
@@ -230,18 +204,46 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
           const popupEl = popup.getElement();
           const button = popupEl?.querySelector<HTMLButtonElement>(`button[data-location-id="${loc.id}"]`);
           if (!button) return;
-          button.onclick = () => onOpenExpeditionLog(loc.id);
+          button.onclick = () => onOpenExpeditionLogRef.current(loc.id);
         });
 
         new mapboxgl.Marker({ element: markerEl }).setLngLat(loc.coords).setPopup(popup).addTo(m);
       });
     });
 
+    mapInitialized.current = true;
+    map.current = newMap;
+    setMapLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    fetch(apiUrl('/locations'))
+      .then(res => res.json())
+      .then((data: DbLocation[]) => {
+        const mapped = Array.isArray(data)
+          ? data
+              .slice()
+              .sort(sortByLatitudeAsc)
+              .map(toMapLocation)
+              .filter((item): item is LocationData => !!item)
+          : [];
+        setLocations(mapped);
+        initMap(mapped);
+      })
+      .catch(err => {
+        console.error('Error fetching map locations:', err);
+        setLocations([]);
+        setMapLoaded(true);
+      });
+  }, [initMap]);
+
+  useEffect(() => {
     return () => {
       map.current?.remove();
       map.current = null;
+      mapInitialized.current = false;
     };
-  }, [locations]);
+  }, []);
 
   return (
     <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.4)]">

@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 
-export default function Constellations() {
+const Constellations = memo(function Constellations() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -104,4 +104,6 @@ export default function Constellations() {
       className="absolute inset-0 pointer-events-none w-full h-full mix-blend-screen"
     />
   );
-}
+});
+
+export default Constellations;

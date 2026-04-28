@@ -3,6 +3,7 @@ import { MapPin, Sun, Camera, ArrowRight, Quote, ArrowLeft } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
 import { useMusic } from '../contexts/MusicContext';
+import FadeInImage from '../lib/FadeInImage';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -210,39 +211,6 @@ function AnimatedNumber({ target }: { target: number }) {
   }, [inView, target]);
 
   return <span ref={ref}>{display}</span>;
-}
-
-type FadeInImageProps = {
-  src: string;
-  alt: string;
-  className: string;
-  loading?: 'eager' | 'lazy';
-  decoding?: 'sync' | 'async' | 'auto';
-  fetchPriority?: 'high' | 'low' | 'auto';
-};
-
-function FadeInImage({ src, alt, className, loading = 'lazy', decoding = 'async', fetchPriority }: FadeInImageProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    setIsLoaded(false);
-  }, [src]);
-
-  return (
-    <span className={`block transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-90'}`}>
-      <img
-        key={src}
-        src={src}
-        alt={alt}
-        loading={loading}
-        decoding={decoding}
-        fetchPriority={fetchPriority}
-        onLoad={() => setIsLoaded(true)}
-        onError={() => setIsLoaded(true)}
-        className={className}
-      />
-    </span>
-  );
 }
 
 function FloatingImage({ src, alt, delay = 0, className = '' }: { src: string; alt: string; delay?: number; className?: string }) {

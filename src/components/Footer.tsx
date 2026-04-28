@@ -1,8 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, HeartHandshake, Landmark, Smartphone, Facebook, Github, Coffee, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { useState, memo } from 'react';
 
-export default function Footer() {
+const Footer = memo(function Footer() {
   const [showSupportOptions, setShowSupportOptions] = useState(false);
 
   return (
@@ -108,4 +108,6 @@ export default function Footer() {
       </div>
     </footer>
   );
-}
+});
+
+export default Footer;

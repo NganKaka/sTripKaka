@@ -1,16 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import Dashboard from './components/Dashboard';
-import GalleryView from './components/GalleryView';
-import TripDetail from './components/TripDetail';
-import Archives from './components/Archives';
 import Constellations from './components/Constellations';
-import AdminPanel from './components/AdminPanel';
-import Stats from './components/Stats';
 import { useMusic } from './contexts/MusicContext';
+
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const GalleryView = lazy(() => import('./components/GalleryView'));
+const TripDetail = lazy(() => import('./components/TripDetail'));
+const Archives = lazy(() => import('./components/Archives'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const Stats = lazy(() => import('./components/Stats'));
+
+function PageLoading() {
+  return (
+    <div className="flex items-center justify-center py-32">
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative flex h-3 w-3">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+          <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+        </div>
+        <span className="text-[10px] font-tech text-primary/60 uppercase tracking-[0.3em]">Loading</span>
+      </div>
+    </div>
+  );
+}
 
 function MusicPlayerHUD() {
   const { activeLocationId, isBlocked, isPlaying, userPlay, userToggle } = useMusic();
@@ -132,12 +147,14 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
           >
-            {activeTab === 'Dashboard' && <Dashboard setActiveTab={setActiveTab} />}
-            {activeTab === 'Journal' && <Archives setActiveTab={setActiveTab} />}
-            {activeTab === 'Gallery' && <GalleryView setActiveTab={setActiveTab} locationId={locationId} />}
-            {activeTab === 'Destinations' && <TripDetail setActiveTab={setActiveTab} locationId={locationId} />}
-            {activeTab === 'Admin' && <AdminPanel />}
-            {activeTab === 'Stats' && <Stats setActiveTab={setActiveTab} />}
+            <Suspense fallback={<PageLoading />}>
+              {activeTab === 'Dashboard' && <Dashboard setActiveTab={setActiveTab} />}
+              {activeTab === 'Journal' && <Archives setActiveTab={setActiveTab} />}
+              {activeTab === 'Gallery' && <GalleryView setActiveTab={setActiveTab} locationId={locationId} />}
+              {activeTab === 'Destinations' && <TripDetail setActiveTab={setActiveTab} locationId={locationId} />}
+              {activeTab === 'Admin' && <AdminPanel />}
+              {activeTab === 'Stats' && <Stats setActiveTab={setActiveTab} />}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>
