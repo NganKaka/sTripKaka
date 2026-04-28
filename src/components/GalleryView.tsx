@@ -240,6 +240,131 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
   const slideshowActiveRef = useRef(false);
   const slideshowScrollAnimRef = useRef<number | null>(null);
 
+  // Image zoom
+  const [zoom, setZoom] = useState({ scale: 1, x: 0, y: 0 });
+  const zoomRef = useRef({ scale: 1, x: 0, y: 0 });
+  const isPanning = useRef(false);
+  const panStart = useRef({ x: 0, y: 0 });
+  const panOrigin = useRef({ x: 0, y: 0 });
+  const pinchRef = useRef({ dist: 0, midX: 0, midY: 0, scale: 1, x: 0, y: 0 });
+
+  useEffect(() => {
+    setZoom({ scale: 1, x: 0, y: 0 });
+    zoomRef.current = { scale: 1, x: 0, y: 0 };
+  }, [activeImage?.src]);
+
+  const clampZ = (s: number) => Math.max(1, Math.min(5, s));
+
+  const onWheelZoom = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ox = e.clientX - rect.left;
+    const oy = e.clientY - rect.top;
+    const dir = e.deltaY < 0 ? 1 : -1;
+    const prev = zoomRef.current;
+    const ns = clampZ(prev.scale * (1 + dir * 0.12));
+    if (ns <= 1.01) {
+      zoomRef.current = { scale: 1, x: 0, y: 0 };
+      setZoom({ scale: 1, x: 0, y: 0 });
+    } else {
+      const ratio = ns / prev.scale;
+      zoomRef.current = { scale: ns, x: ox - ratio * (ox - prev.x), y: oy - ratio * (oy - prev.y) };
+      setZoom({ scale: ns, x: zoomRef.current.x, y: zoomRef.current.y });
+    }
+  }, []);
+
+  const onDblClickZoom = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (zoomRef.current.scale > 1) {
+      zoomRef.current = { scale: 1, x: 0, y: 0 };
+      setZoom({ scale: 1, x: 0, y: 0 });
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const ox = e.clientX - rect.left;
+      const oy = e.clientY - rect.top;
+      const ns = 2.5;
+      zoomRef.current = { scale: ns, x: ox - ns * ox, y: oy - ns * oy };
+      setZoom({ scale: ns, x: ox - ns * ox, y: oy - ns * oy });
+    }
+  }, []);
+
+  const onPanStart = useCallback((e: React.MouseEvent) => {
+    if (zoomRef.current.scale <= 1) return;
+    e.preventDefault();
+    isPanning.current = true;
+    panStart.current = { x: e.clientX, y: e.clientY };
+    panOrigin.current = { x: zoomRef.current.x, y: zoomRef.current.y };
+  }, []);
+
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+      if (!isPanning.current) return;
+      const nx = panOrigin.current.x + (e.clientX - panStart.current.x);
+      const ny = panOrigin.current.y + (e.clientY - panStart.current.y);
+      zoomRef.current = { ...zoomRef.current, x: nx, y: ny };
+      setZoom(prev => ({ ...prev, x: nx, y: ny }));
+    };
+    const up = () => { isPanning.current = false; };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+  }, []);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const a = e.touches[0];
+      const b = e.touches[1];
+      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      pinchRef.current = {
+        dist,
+        midX: (a.clientX + b.clientX) / 2,
+        midY: (a.clientY + b.clientY) / 2,
+        scale: zoomRef.current.scale,
+        x: zoomRef.current.x,
+        y: zoomRef.current.y,
+      };
+    } else if (e.touches.length === 1 && zoomRef.current.scale > 1) {
+      isPanning.current = true;
+      panStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      panOrigin.current = { x: zoomRef.current.x, y: zoomRef.current.y };
+    }
+  }, []);
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const a = e.touches[0];
+      const b = e.touches[1];
+      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      const p = pinchRef.current;
+      if (p.dist === 0) return;
+      const ns = clampZ(p.scale * (dist / p.dist));
+      if (ns <= 1.01) {
+        zoomRef.current = { scale: 1, x: 0, y: 0 };
+        setZoom({ scale: 1, x: 0, y: 0 });
+      } else {
+        const midX = (a.clientX + b.clientX) / 2;
+        const midY = (a.clientY + b.clientY) / 2;
+        const ratio = ns / p.scale;
+        zoomRef.current = { scale: ns, x: midX - ratio * (p.midX - p.x), y: midY - ratio * (p.midY - p.y) };
+        setZoom({ scale: ns, x: zoomRef.current.x, y: zoomRef.current.y });
+      }
+    } else if (e.touches.length === 1 && isPanning.current) {
+      const nx = panOrigin.current.x + (e.touches[0].clientX - panStart.current.x);
+      const ny = panOrigin.current.y + (e.touches[0].clientY - panStart.current.y);
+      zoomRef.current = { ...zoomRef.current, x: nx, y: ny };
+      setZoom(prev => ({ ...prev, x: nx, y: ny }));
+    }
+  }, []);
+
+  const onTouchEnd = useCallback(() => {
+    isPanning.current = false;
+    pinchRef.current.dist = 0;
+  }, []);
+
   const content = LOCATION_CONTENT[locationId] || DEFAULT_CONTENT;
   const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 3);
   const availableTags = Array.from(new Set(nodes.flatMap(node => node.image_tags.flat()))).sort();
@@ -971,8 +1096,24 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
               onClick={(event) => event.stopPropagation()}
             >
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 items-start">
-                <div className="relative overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20">
-                  <FadeInImage src={activeImageDisplaySrc} alt={activeImageDisplayAlt} loading="eager" decoding="async" className="max-h-[84vh] w-full object-contain" />
+                <div
+                  className="relative overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20"
+                  onWheel={onWheelZoom}
+                  onMouseDown={onPanStart}
+                  onDoubleClick={onDblClickZoom}
+                  onTouchStart={onTouchStart}
+                  onTouchMove={onTouchMove}
+                  onTouchEnd={onTouchEnd}
+                >
+                  <div style={{
+                    transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`,
+                    transformOrigin: '0 0',
+                    transition: zoom.scale <= 1.01 ? 'transform 0.35s ease-out' : 'none',
+                    willChange: zoom.scale > 1 ? 'transform' : 'auto',
+                    cursor: zoom.scale > 1 ? 'zoom-out' : 'zoom-in',
+                  }}>
+                    <FadeInImage src={activeImageDisplaySrc} alt={activeImageDisplayAlt} loading="eager" decoding="async" className="max-h-[84vh] w-full object-contain" />
+                  </div>
                   <button
                     type="button"
                     onClick={(e) => handleDownload(activeImageDisplaySrc, e)}
