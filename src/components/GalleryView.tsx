@@ -1,5 +1,5 @@
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { Mountain, ArrowLeft, ArrowUp, Star, Download, Play, Pause, ChevronUp, ChevronDown, Share2 } from 'lucide-react';
+import { Mountain, ArrowLeft, Star, Download, Play, Pause, ChevronUp, ChevronDown, Share2 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
@@ -249,14 +249,6 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
   const panStart = useRef({ x: 0, y: 0 });
   const panOrigin = useRef({ x: 0, y: 0 });
   const pinchRef = useRef({ dist: 0, midX: 0, midY: 0, scale: 1, x: 0, y: 0 });
-  const [showBackToTop, setShowBackToTop] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setShowBackToTop(window.scrollY > 600);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   useEffect(() => {
     setZoom({ scale: 1, x: 0, y: 0 });
@@ -1336,22 +1328,6 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
             <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em]">Slideshow active — scroll locked</span>
           </motion.div>,
           document.body
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showBackToTop && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            type="button"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-20 right-8 z-[60] flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-background/80 text-on-surface/70 hover:bg-white/10 hover:text-white hover:border-white/30 transition-all cursor-pointer backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
-            aria-label="Back to top"
-          >
-            <ArrowUp size={18} />
-          </motion.button>
         )}
       </AnimatePresence>
 

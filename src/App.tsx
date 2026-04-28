@@ -1,6 +1,8 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { ArrowUp } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Constellations from './components/Constellations';
@@ -83,6 +85,14 @@ export default function App() {
   const [scrollPercent, setScrollPercent] = useState(0);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [slideshowActive, setSlideshowActive] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 600);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     return scrollYProgress.on("change", (latest) => {
@@ -203,6 +213,21 @@ export default function App() {
           className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[150px]" 
         />
       </div>
+
+      {showBackToTop && createPortal(
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-20 right-8 z-[100] flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-background/80 text-on-surface/70 hover:bg-white/10 hover:text-white hover:border-white/30 transition-all cursor-pointer backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
+          aria-label="Back to top"
+        >
+          <ArrowUp size={18} />
+        </motion.button>,
+        document.body
+      )}
+
     </div>
   );
 }
