@@ -10,6 +10,19 @@ class GalleryNode(BaseModel):
     image_tags: List[List[str]] = Field(default_factory=lambda: [[], [], []])
 
 
+class AmbientWeatherOut(BaseModel):
+    condition: str = 'unknown'
+    temperature_c: float = 0.0
+    is_day: bool = True
+    source: str = 'open-meteo'
+    fetched_at: float = 0.0
+    stale: bool = False
+
+
+class AmbientOut(BaseModel):
+    weather: Optional[AmbientWeatherOut] = None
+
+
 class LocationBase(BaseModel):
     id: str
     name: str
@@ -59,6 +72,7 @@ class LocationPatch(BaseModel):
 class LocationOut(LocationBase):
     average_stars: float = 5.0
     total_reviews: int = 0
+    ambient: Optional[AmbientOut] = None
 
     class Config:
         from_attributes = True

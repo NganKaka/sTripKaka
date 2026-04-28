@@ -42,6 +42,14 @@ interface LocationResponse {
   gallery_images?: string[];
   music_url?: string;
   img?: string;
+  ambient?: {
+    weather?: {
+      condition: string;
+      temperature_c: number;
+      is_day: boolean;
+      stale: boolean;
+    };
+  };
 }
 
 interface ImageNoteItem {
@@ -211,6 +219,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
   const [heroImg, setHeroImg] = useState('');
   const [heroHeadline, setHeroHeadline] = useState('Golden Hour Escape');
   const [heroLocationName, setHeroLocationName] = useState('Phu Quoc');
+  const [weather, setWeather] = useState<{ condition: string; temperature_c: number; is_day: boolean; stale: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState<ActiveGalleryImage | null>(null);
   const [imageNotes, setImageNotes] = useState<ImageNoteItem[]>([]);
@@ -442,6 +451,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
     setStars(5);
     setNickname('Guest');
     setComment('');
+    setWeather(null);
     setReviewError('');
     stopSlideshow();
     pushRecentView(locationId);
@@ -460,6 +470,9 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
         setHeroHeadline(subtitle || 'Golden Hour Escape');
         setHeroLocationName(locationName || 'Unknown Destination');
         activateMusic(locationId, data.music_url);
+        if (data.ambient?.weather) {
+          setWeather(data.ambient.weather);
+        }
         setLoading(false);
       })
       .catch(() => {
@@ -937,6 +950,86 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
+
+        {weather && (
+          <>
+            {/* Sun rays – clear + day */}
+            {weather.condition === 'clear' && weather.is_day && (
+              <div
+                className="absolute inset-0 z-[1] pointer-events-none motion-safe:animate-pulse"
+                style={{
+                  background: 'radial-gradient(ellipse at 70% 20%, rgba(255,200,80,0.18) 0%, transparent 60%), radial-gradient(ellipse at 30% 10%, rgba(255,180,40,0.10) 0%, transparent 50%)',
+                  animationDuration: '6s',
+                }}
+              />
+            )}
+            {/* Dim cool glow – clear + night */}
+            {weather.condition === 'clear' && !weather.is_day && (
+              <div
+                className="absolute inset-0 z-[1] pointer-events-none"
+                style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(100,150,220,0.12) 0%, transparent 60%)' }}
+              />
+            )}
+            {/* Cloud haze */}
+            {weather.condition === 'clouds' && (
+              <div className="absolute inset-0 z-[1] pointer-events-none overflow-hidden motion-safe:animate-pulse" style={{ animationDuration: '8s' }}>
+                <div
+                  className="absolute inset-0"
+                  style={{ background: 'linear-gradient(180deg, rgba(200,200,210,0.15) 0%, rgba(180,180,190,0.08) 40%, transparent 70%)' }}
+                />
+              </div>
+            )}
+            {/* Diagonal rain streaks */}
+            {weather.condition === 'rain' && (
+              <div
+                className="absolute inset-0 z-[1] pointer-events-none overflow-hidden motion-reduce:hidden"
+                style={{
+                  backgroundImage: 'repeating-linear-gradient(115deg, transparent, transparent 2px, rgba(180,200,230,0.08) 2px, rgba(180,200,230,0.08) 4px)',
+                  animation: 'rainFall 0.5s linear infinite',
+                }}
+              />
+            )}
+            {/* Snow dots */}
+            {weather.condition === 'snow' && (
+              <div
+                className="absolute inset-0 z-[1] pointer-events-none overflow-hidden motion-reduce:hidden"
+                style={{
+                  backgroundImage: 'radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.4), transparent), radial-gradient(1px 1px at 30% 50%, rgba(255,255,255,0.35), transparent), radial-gradient(1.5px 1.5px at 55% 30%, rgba(255,255,255,0.45), transparent), radial-gradient(1px 1px at 70% 55%, rgba(255,255,255,0.3), transparent), radial-gradient(1.5px 1.5px at 85% 15%, rgba(255,255,255,0.4), transparent)',
+                  animation: 'snowFall 4s linear infinite',
+                }}
+              />
+            )}
+            {/* Mist / fog */}
+            {weather.condition === 'mist' && (
+              <div
+                className="absolute inset-0 z-[1] pointer-events-none motion-safe:animate-pulse"
+                style={{
+                  background: 'linear-gradient(0deg, rgba(200,210,220,0.2) 0%, rgba(180,190,200,0.08) 50%, transparent 85%)',
+                  animationDuration: '4s',
+                }}
+              />
+            )}
+            {/* Thunderstorm – dark tint + subtle pulse */}
+            {weather.condition === 'thunderstorm' && (
+              <div
+                className="absolute inset-0 z-[1] pointer-events-none motion-safe:animate-pulse"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(40,30,50,0.35) 0%, rgba(30,25,40,0.2) 50%, transparent 90%)',
+                  animationDuration: '3s',
+                }}
+              />
+            )}
+          </>
+        )}
+
+        {weather && (
+          <div className="absolute top-4 right-4 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/60 backdrop-blur-md border border-white/10 text-[10px] font-tech uppercase tracking-wider text-secondary/80">
+            <span>{weather.temperature_c.toFixed(0)}&deg;C</span>
+            <span className="w-1 h-1 rounded-full bg-white/20" />
+            <span>{weather.condition}{weather.stale ? ' · cached' : ''}</span>
+          </div>
+        )}
+
         <div className="relative z-10 max-w-3xl">
           <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="font-headline text-primary tracking-[0.05em] uppercase text-sm mb-4 block">
             Expedition Gallery

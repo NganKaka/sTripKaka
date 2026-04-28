@@ -556,7 +556,7 @@ csstype@^3.2.2:
   resolved "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz"
   integrity sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==
 
-debug@^4.0.0, debug@^4.1.0, debug@^4.3.1:
+debug@^4.0.0, debug@^4.1.0, debug@^4.1.1, debug@^4.3.1:
   version "4.4.3"
   resolved "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz"
   integrity sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==
@@ -762,6 +762,13 @@ html-url-attributes@^3.0.0:
   version "3.0.1"
   resolved "https://registry.npmjs.org/html-url-attributes/-/html-url-attributes-3.0.1.tgz"
   integrity sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ==
+
+httpx@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.npmjs.org/httpx/-/httpx-3.0.1.tgz"
+  integrity sha512-ILTmufYaGAH2Def/wQ++6mz41xDghoRFd3b49uSkVMIRUKm2nHTvPPaVGtNN5hoTu9E3bJ8Jg+8TRkx+PiN6sg==
+  dependencies:
+    debug "^4.1.1"
 
 inline-style-parser@0.2.7:
   version "0.2.7"

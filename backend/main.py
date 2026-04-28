@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Request
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Request
 from urllib.parse import urlparse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -20,6 +20,7 @@ import cloudinary.uploader
 import models
 import schemas
 from database import engine, get_db
+from services.weather import fetch_weather_sync
 
 app = FastAPI(
     title="sTripKaka Backend API",
@@ -198,6 +199,24 @@ def _serialize_location(loc: models.Location, aggregate: Optional[Dict[str, floa
     data["total_reviews"] = int((aggregate or {}).get("total_reviews", 0))
     data["is_archived"] = bool(getattr(loc, "is_archived", 0))
     data["archived_at"] = getattr(loc, "archived_at", None)
+
+    # Best-effort ambient weather enrichment
+    try:
+        weather = fetch_weather_sync(loc.lat, loc.lng)
+        if weather is not None:
+            data["ambient"] = {
+                "weather": {
+                    "condition": weather.condition,
+                    "temperature_c": weather.temperature_c,
+                    "is_day": weather.is_day,
+                    "source": weather.source,
+                    "fetched_at": weather.fetched_at,
+                    "stale": weather.stale,
+                }
+            }
+    except Exception:
+        pass  # Never let weather break the location response
+
     return data
 
 
