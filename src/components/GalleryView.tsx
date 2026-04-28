@@ -1,6 +1,6 @@
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { Mountain, ArrowLeft, Star } from 'lucide-react';
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { Mountain, ArrowLeft, Star, Download, Play, Pause } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
 import { useMusic } from '../contexts/MusicContext';
 import FadeInImage from '../lib/FadeInImage';
@@ -177,7 +177,7 @@ function CircuitNode({ icon: Icon }: { icon: any }) {
     <motion.div
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: false, margin: '-20%' }}
+      viewport={{ once: false }}
       variants={{
         hidden: { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)', scale: 0.8, boxShadow: 'none' },
         visible: { borderColor: 'rgba(34,211,238,0.8)', color: 'rgba(34,211,238,1)', scale: 1, boxShadow: '0 0 20px rgba(34,211,238,0.5)' },
@@ -191,9 +191,16 @@ function CircuitNode({ icon: Icon }: { icon: any }) {
 }
 
 export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: GalleryViewProps) {
-  const { scrollYProgress } = useScroll();
+  const galleryContentRef = useRef<HTMLDivElement | null>(null);
+  const { scrollY } = useScroll();
+  const traceHeight = useTransform(scrollY, (latest) => {
+    if (!galleryContentRef.current) return '0%';
+    const rect = galleryContentRef.current.getBoundingClientRect();
+    const viewportH = window.innerHeight;
+    const progress = Math.max(0, Math.min(1, (viewportH - rect.top) / (rect.height + viewportH)));
+    return `${progress * 100}%`;
+  });
   const { activateMusic } = useMusic();
-  const traceHeight = useTransform(scrollYProgress, [0, 1], ['0%', '100%']);
 
   const [nodes, setNodes] = useState<GalleryNode[]>([]);
   const [heroImg, setHeroImg] = useState('');
@@ -222,6 +229,12 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
   const [reviewError, setReviewError] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const reviewSectionRef = useRef<HTMLElement | null>(null);
+
+  const [slideshowActive, setSlideshowActive] = useState(false);
+  const slideshowIndexRef = useRef(0);
+  const slideshowTimersRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nodeRefsRef = useRef<Map<number, HTMLElement>>(new Map());
+  const slideshowActiveRef = useRef(false);
 
   const content = LOCATION_CONTENT[locationId] || DEFAULT_CONTENT;
   const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 3);
@@ -262,6 +275,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
     setNickname('Guest');
     setComment('');
     setReviewError('');
+    stopSlideshow();
     pushRecentView(locationId);
     trackLocationView(locationId, 'gallery');
 
@@ -509,6 +523,107 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
 
   const resetStarPreview = () => setHoverStars(null);
 
+  const handleDownload = (src: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    const filename = src.split('/').pop() || 'image.jpg';
+    fetch(src)
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => {
+        const a = document.createElement('a');
+        a.href = src;
+        a.download = filename;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+  };
+
+  const setNodeRef = useCallback((index: number, el: HTMLElement | null) => {
+    if (el) {
+      nodeRefsRef.current.set(index, el);
+    } else {
+      nodeRefsRef.current.delete(index);
+    }
+  }, []);
+
+  const startSlideshow = useCallback(() => {
+    setSlideshowActive(true);
+    slideshowActiveRef.current = true;
+    slideshowIndexRef.current = 0;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+
+    const advance = () => {
+      if (!slideshowActiveRef.current) return;
+
+      const idx = slideshowIndexRef.current;
+      const el = nodeRefsRef.current.get(idx);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      const nextIdx = idx + 1;
+      if (nodeRefsRef.current.has(nextIdx)) {
+        slideshowIndexRef.current = nextIdx;
+        slideshowTimersRef.current = setTimeout(advance, 10000);
+      } else {
+        slideshowTimersRef.current = setTimeout(() => {
+          stopSlideshow();
+        }, 10000);
+      }
+    };
+
+    advance();
+  }, []);
+
+  const stopSlideshow = useCallback(() => {
+    setSlideshowActive(false);
+    slideshowActiveRef.current = false;
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    if (slideshowTimersRef.current) {
+      clearTimeout(slideshowTimersRef.current);
+      slideshowTimersRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const blockScroll = (e: Event) => {
+      if (slideshowActiveRef.current) e.preventDefault();
+    };
+    const blockKeys = (e: KeyboardEvent) => {
+      if (!slideshowActiveRef.current) return;
+      const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'PageUp', 'PageDown', 'Home', 'End'];
+      if (keys.includes(e.code)) e.preventDefault();
+    };
+
+    window.addEventListener('wheel', blockScroll, { passive: false });
+    window.addEventListener('touchmove', blockScroll, { passive: false });
+    window.addEventListener('keydown', blockKeys);
+
+    return () => {
+      window.removeEventListener('wheel', blockScroll);
+      window.removeEventListener('touchmove', blockScroll);
+      window.removeEventListener('keydown', blockKeys);
+      if (slideshowTimersRef.current) {
+        clearTimeout(slideshowTimersRef.current);
+      }
+    };
+  }, []);
+
   const renderGalleryImage = (src: string, alt: string, heightClass: string, tags: string[] = []) => (
     <motion.button
       type="button"
@@ -525,6 +640,16 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
         className={`w-full ${heightClass} object-cover rounded-lg transition-transform duration-500 group-hover:scale-[1.04]`}
       />
       <div className="absolute inset-2 rounded-lg bg-gradient-to-t from-background/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={(e) => handleDownload(src, e)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDownload(src, e as any); }}
+        className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/70 border border-white/10 text-on-surface/70 hover:bg-white/10 hover:text-white hover:border-white/30 opacity-0 group-hover:opacity-100 transition-all cursor-pointer z-10 select-none"
+        aria-label={`Download ${alt}`}
+      >
+        <Download size={16} />
+      </span>
       <div className="absolute bottom-5 right-5 px-3 py-1.5 rounded-full bg-background/75 border border-white/10 text-[10px] font-tech uppercase tracking-[0.2em] text-cyan-200 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300 pointer-events-none backdrop-blur-md">
         View
       </div>
@@ -594,6 +719,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
         </div>
       </section>
 
+      <div ref={galleryContentRef}>
       {loading ? (
         <div className="flex items-center justify-center py-24">
           <div className="flex flex-col items-center gap-4">
@@ -635,7 +761,9 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
             </div>
           )}
 
-          {nodes.map((node, index) => {
+          {(() => {
+            let visibleIndex = 0;
+            return nodes.map((node, index) => {
             const hasImages = node.images.some(Boolean);
             if (!hasImages) return null;
 
@@ -643,6 +771,9 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
               const nodeMatchesTag = node.images.some((img, imgIndex) => img && node.image_tags[imgIndex]?.includes(activeTag));
               if (!nodeMatchesTag) return null;
             }
+
+            const currentVisibleIndex = visibleIndex;
+            visibleIndex++;
 
             const isEven = index % 2 === 0;
             const textColumnClass = isEven ? 'lg:col-span-4 lg:order-1' : 'lg:col-span-4 lg:order-2';
@@ -653,9 +784,9 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
             const img3 = activeTag === null || node.image_tags[2]?.includes(activeTag) ? node.images[2] : '';
 
             return (
-              <section key={`gallery-node-${index}`} className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24 items-start pl-16 md:pl-28 relative">
+              <section ref={(el) => setNodeRef(currentVisibleIndex, el)} key={`gallery-node-${index}`} className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24 items-start pl-16 md:pl-28 relative">
                 <div className="absolute left-6 md:left-12 top-6 w-10 md:w-16 h-[2px] bg-white/5 z-0" />
-                <motion.div initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: false, margin: '-20%' }} transition={{ duration: 0.5, delay: 0.2 }} className="absolute left-6 md:left-12 top-6 w-10 md:w-16 h-[2px] bg-cyan-400 z-0 shadow-[0_0_10px_rgba(34,211,238,1)] origin-left" />
+                <motion.div initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: false }} transition={{ duration: 0.5, delay: 0.2 }} className="absolute left-6 md:left-12 top-6 w-10 md:w-16 h-[2px] bg-cyan-400 z-0 shadow-[0_0_10px_rgba(34,211,238,1)] origin-left" />
                 <div className={`${textColumnClass} sticky top-32 space-y-6 z-20`}>
                   <div className="flex items-center gap-4 mb-4 -ml-5 md:-ml-8">
                     <CircuitNode icon={Mountain} />
@@ -677,11 +808,11 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
                 </div>
               </section>
             );
-          })}
+          })})()}
         </>
       )}
 
-      <section ref={reviewSectionRef} className="pl-16 md:pl-28">
+      <section ref={reviewSectionRef} className="pl-16 md:pl-28 mt-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
           <div className="lg:col-span-5 space-y-4">
             <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em] block">Traveler Reviews</span>
@@ -772,6 +903,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
           </div>
         </div>
       </section>
+      </div>
 
       <AnimatePresence>
         {activeImage && (
@@ -785,14 +917,24 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
               className="relative z-10 w-full max-w-7xl rounded-3xl border border-white/10 bg-surface/80 p-2.5 md:p-3 shadow-[0_25px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
               onClick={(event) => event.stopPropagation()}
             >
-              <button
-                type="button"
-                onClick={closeImageModal}
-                className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
-                aria-label="Close image preview"
-              >
-                <ArrowLeft size={18} className="rotate-45" />
-              </button>
+              <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => handleDownload(activeImageDisplaySrc, e)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
+                  aria-label={`Download ${activeImageDisplayAlt}`}
+                >
+                  <Download size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={closeImageModal}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
+                  aria-label="Close image preview"
+                >
+                  <ArrowLeft size={18} className="rotate-45" />
+                </button>
+              </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 items-start">
                 <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20">
@@ -867,6 +1009,46 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
           </motion.div>
         )}
       </AnimatePresence>
+
+      {!loading && nodes.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+          <button
+            type="button"
+            onClick={slideshowActive ? stopSlideshow : startSlideshow}
+            className={`flex items-center gap-2 px-5 py-3 rounded-full border font-tech text-[10px] uppercase tracking-[0.2em] transition-all cursor-pointer backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.4)] ${
+              slideshowActive
+                ? 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
+                : 'bg-background/80 border-white/15 text-secondary hover:text-white hover:border-white/30'
+            }`}
+          >
+            {slideshowActive ? (
+              <>
+                <Pause size={14} />
+                <span>Stop Slideshow</span>
+              </>
+            ) : (
+              <>
+                <Play size={14} />
+                <span>Slideshow</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {slideshowActive && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-[130] px-5 py-2.5 rounded-full bg-background/85 backdrop-blur-md border border-primary/40 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+          >
+            <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em]">Slideshow active — scroll locked</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
