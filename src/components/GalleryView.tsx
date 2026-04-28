@@ -1,6 +1,6 @@
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { Mountain, ArrowLeft, Star, Download, Play, Pause } from 'lucide-react';
-import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
+import { Mountain, ArrowLeft, ArrowUp, Star, Download, Play, Pause, ChevronUp, ChevronDown, Share2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
 import { useMusic } from '../contexts/MusicContext';
@@ -62,6 +62,8 @@ interface ImageNotesResponse {
 interface ActiveGalleryImage {
   src: string;
   alt: string;
+  nodeIndex: number;
+  imageIndex: number;
 }
 
 const MAX_IMAGE_NOTES = 3;
@@ -247,6 +249,14 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
   const panStart = useRef({ x: 0, y: 0 });
   const panOrigin = useRef({ x: 0, y: 0 });
   const pinchRef = useRef({ dist: 0, midX: 0, midY: 0, scale: 1, x: 0, y: 0 });
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 600);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     setZoom({ scale: 1, x: 0, y: 0 });
@@ -369,6 +379,43 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
   const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 3);
   const availableTags = Array.from(new Set(nodes.flatMap(node => node.image_tags.flat()))).sort();
   const hasTagFilters = availableTags.length > 0;
+
+  const allImages = useMemo(() =>
+    nodes.flatMap((node, ni) =>
+      node.images
+        .map((src, ii) => src ? { src, alt: `${node.title || `Node ${ni + 1}`} image ${ii + 1}`, nodeIndex: ni, imageIndex: ii } : null)
+        .filter(Boolean) as { src: string; alt: string; nodeIndex: number; imageIndex: number }[]
+    ),
+    [nodes]
+  );
+
+  const currentImageIdx = useMemo(() => {
+    if (!activeImage) return -1;
+    return allImages.findIndex(
+      img => img.src === activeImage.src && img.nodeIndex === activeImage.nodeIndex && img.imageIndex === activeImage.imageIndex
+    );
+  }, [activeImage, allImages]);
+
+  const canGoPrev = currentImageIdx > 0;
+  const canGoNext = currentImageIdx < allImages.length - 1;
+
+  const navigateImage = useCallback((direction: 1 | -1) => {
+    if (currentImageIdx === -1) return;
+    const nextIdx = currentImageIdx + direction;
+    if (nextIdx < 0 || nextIdx >= allImages.length) return;
+    const next = allImages[nextIdx];
+    setActiveImage({ src: next.src, alt: next.alt, nodeIndex: next.nodeIndex, imageIndex: next.imageIndex });
+  }, [currentImageIdx, allImages]);
+
+  useEffect(() => {
+    if (!activeImage) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateImage(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); navigateImage(1); }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [activeImage, navigateImage]);
 
   const fetchReviews = () => {
     setReviewLoading(true);
@@ -512,8 +559,8 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
     window.setTimeout(scrollToReview, 250);
   }, [locationId, reviews]);
 
-  const openImageModal = (src: string, alt: string) => {
-    setActiveImage({ src, alt });
+  const openImageModal = (src: string, alt: string, nodeIndex: number, imageIndex: number) => {
+    setActiveImage({ src, alt, nodeIndex, imageIndex });
   };
 
   const closeImageModal = () => {
@@ -687,6 +734,20 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
       });
   };
 
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const handleShare = (src: string, alt: string) => {
+    const shareUrl = `${window.location.origin}/gallery/${locationId}?img=${encodeURIComponent(src)}`;
+    if (navigator.share) {
+      navigator.share({ url: shareUrl, title: alt }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      }).catch(() => {});
+    }
+  };
+
   const setNodeRef = useCallback((index: number, el: HTMLElement | null) => {
     if (el) {
       nodeRefsRef.current.set(index, el);
@@ -802,12 +863,12 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
     };
   }, []);
 
-  const renderGalleryImage = (src: string, alt: string, heightClass: string, tags: string[] = []) => (
+  const renderGalleryImage = (src: string, alt: string, heightClass: string, nodeIndex: number, imageIndex: number, tags: string[] = []) => (
     <motion.button
       type="button"
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.98 }}
-      onClick={() => openImageModal(src, alt)}
+      onClick={() => openImageModal(src, alt, nodeIndex, imageIndex)}
       className="glass-card rounded-xl p-2 ghost-border overflow-hidden group relative w-full text-left cursor-pointer hover:shadow-[0_0_24px_rgba(34,211,238,0.16)] hover:border-cyan-400/30 transition-all"
     >
       <FadeInImage
@@ -977,11 +1038,11 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                 </div>
                 <div className={`${imageColumnClass} grid grid-cols-1 md:grid-cols-2 gap-6 z-10`}>
                   <div className="space-y-6">
-                    {img1 && renderGalleryImage(img1, `${node.title || `Node ${index + 1}`} image 1`, 'h-80', node.image_tags[0])}
-                    {img2 && renderGalleryImage(img2, `${node.title || `Node ${index + 1}`} image 2`, 'h-64', node.image_tags[1])}
+                    {img1 && renderGalleryImage(img1, `${node.title || `Node ${index + 1}`} image 1`, 'h-80', index, 0, node.image_tags[0])}
+                    {img2 && renderGalleryImage(img2, `${node.title || `Node ${index + 1}`} image 2`, 'h-64', index, 1, node.image_tags[1])}
                   </div>
                   <div className="space-y-6 md:mt-12">
-                    {img3 && renderGalleryImage(img3, `${node.title || `Node ${index + 1}`} image 3`, 'h-96', node.image_tags[2])}
+                    {img3 && renderGalleryImage(img3, `${node.title || `Node ${index + 1}`} image 3`, 'h-96', index, 2, node.image_tags[2])}
                   </div>
                 </div>
               </section>
@@ -1096,9 +1157,32 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
               onClick={(event) => event.stopPropagation()}
             >
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 items-start">
-                <div
-                  className="relative overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20"
-                  onWheel={onWheelZoom}
+                <div className="relative">
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-20 flex flex-col gap-2">
+                    {canGoPrev && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); navigateImage(-1); }}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-background/80 text-on-surface/80 hover:bg-white/10 hover:text-white hover:border-white/30 transition-all cursor-pointer backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
+                        aria-label="Previous image"
+                      >
+                        <ChevronUp size={20} />
+                      </button>
+                    )}
+                    {canGoNext && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); navigateImage(1); }}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-background/80 text-on-surface/80 hover:bg-white/10 hover:text-white hover:border-white/30 transition-all cursor-pointer backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
+                        aria-label="Next image"
+                      >
+                        <ChevronDown size={20} />
+                      </button>
+                    )}
+                  </div>
+                  <div
+                    className="relative overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20"
+                    onWheel={onWheelZoom}
                   onMouseDown={onPanStart}
                   onDoubleClick={onDblClickZoom}
                   onTouchStart={onTouchStart}
@@ -1114,14 +1198,30 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                   }}>
                     <FadeInImage src={activeImageDisplaySrc} alt={activeImageDisplayAlt} loading="eager" decoding="async" className="max-h-[84vh] w-full object-contain" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={(e) => handleDownload(activeImageDisplaySrc, e)}
-                    className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer z-10"
-                    aria-label={`Download ${activeImageDisplayAlt}`}
-                  >
-                    <Download size={16} />
-                  </button>
+                  <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+                    {shareCopied && (
+                      <span className="px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30 text-primary text-[10px] font-tech uppercase tracking-wider backdrop-blur-md animate-pulse">
+                        Copied!
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleShare(activeImageDisplaySrc, activeImageDisplayAlt)}
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
+                      aria-label={`Share ${activeImageDisplayAlt}`}
+                    >
+                      <Share2 size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDownload(activeImageDisplaySrc, e)}
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
+                      aria-label={`Download ${activeImageDisplayAlt}`}
+                    >
+                      <Download size={16} />
+                    </button>
+                  </div>
+                </div>
                 </div>
 
                 <motion.aside
@@ -1236,6 +1336,22 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
             <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em]">Slideshow active — scroll locked</span>
           </motion.div>,
           document.body
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showBackToTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-20 right-8 z-[60] flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-background/80 text-on-surface/70 hover:bg-white/10 hover:text-white hover:border-white/30 transition-all cursor-pointer backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
+            aria-label="Back to top"
+          >
+            <ArrowUp size={18} />
+          </motion.button>
         )}
       </AnimatePresence>
 
