@@ -1057,10 +1057,10 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
           <button
             type="button"
             onClick={slideshowActive ? stopSlideshow : startSlideshow}
-            className={`relative grid h-11 w-[12rem] place-items-center overflow-hidden rounded-full border font-body text-[10px] uppercase tracking-[0.16em] transition-colors cursor-pointer backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] ${
+            className={`relative grid place-items-center overflow-hidden rounded-full border font-body text-[10px] uppercase tracking-[0.16em] transition-all cursor-pointer backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] ${
               slideshowActive
-                ? 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
-                : 'bg-background/80 border-white/15 text-secondary hover:text-white hover:border-white/30'
+                ? 'h-7 w-32 bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
+                : 'h-11 w-[12rem] bg-background/80 border-white/15 text-secondary hover:text-white hover:border-white/30'
             }`}
           >
             <span
@@ -1077,7 +1077,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
               }`}
             >
               <span className="flex h-4 w-4 items-center justify-center"><Pause size={14} /></span>
-              <span className="leading-none">Stop Slideshow</span>
+              <span className="leading-none">Stop</span>
             </span>
           </button>
         </div>,
