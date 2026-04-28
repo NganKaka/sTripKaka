@@ -1,6 +1,7 @@
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { Mountain, ArrowLeft, Star, Download, Play, Pause } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
 import { useMusic } from '../contexts/MusicContext';
 import FadeInImage from '../lib/FadeInImage';
@@ -15,6 +16,8 @@ type GalleryNode = {
 interface GalleryViewProps {
   setActiveTab: (tab: string) => void;
   locationId?: string;
+  onImageModalChange?: (open: boolean) => void;
+  onSlideshowChange?: (active: boolean) => void;
 }
 
 interface ReviewItem {
@@ -190,7 +193,7 @@ function CircuitNode({ icon: Icon }: { icon: any }) {
   );
 }
 
-export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: GalleryViewProps) {
+export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onImageModalChange, onSlideshowChange }: GalleryViewProps) {
   const galleryContentRef = useRef<HTMLDivElement | null>(null);
   const { scrollY } = useScroll();
   const traceHeight = useTransform(scrollY, (latest) => {
@@ -353,6 +356,14 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
       document.body.style.overflow = '';
     };
   }, [activeImage, locationId]);
+
+  useEffect(() => {
+    onImageModalChange?.(activeImage !== null);
+  }, [activeImage, onImageModalChange]);
+
+  useEffect(() => {
+    onSlideshowChange?.(slideshowActive);
+  }, [slideshowActive, onSlideshowChange]);
 
   useEffect(() => {
     const rawTarget = localStorage.getItem('reviewTarget');
@@ -959,28 +970,17 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
               className="relative z-10 w-full max-w-7xl rounded-3xl border border-white/10 bg-surface/80 p-2.5 md:p-3 shadow-[0_25px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={(e) => handleDownload(activeImageDisplaySrc, e)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
-                  aria-label={`Download ${activeImageDisplayAlt}`}
-                >
-                  <Download size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={closeImageModal}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
-                  aria-label="Close image preview"
-                >
-                  <ArrowLeft size={18} className="rotate-45" />
-                </button>
-              </div>
-
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 items-start">
-                <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20">
+                <div className="relative overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20">
                   <FadeInImage src={activeImageDisplaySrc} alt={activeImageDisplayAlt} loading="eager" decoding="async" className="max-h-[84vh] w-full object-contain" />
+                  <button
+                    type="button"
+                    onClick={(e) => handleDownload(activeImageDisplaySrc, e)}
+                    className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer z-10"
+                    aria-label={`Download ${activeImageDisplayAlt}`}
+                  >
+                    <Download size={16} />
+                  </button>
                 </div>
 
                 <motion.aside
@@ -1052,42 +1052,49 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
         )}
       </AnimatePresence>
 
-      {!loading && nodes.length > 0 && (
+      {!loading && nodes.length > 0 && !activeImage && createPortal(
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
           <button
             type="button"
             onClick={slideshowActive ? stopSlideshow : startSlideshow}
-            className={`flex items-center gap-2 px-5 py-3 rounded-full border font-tech text-[10px] uppercase tracking-[0.2em] transition-all cursor-pointer backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.4)] ${
+            className={`relative grid h-11 w-[12rem] place-items-center overflow-hidden rounded-full border font-body text-[10px] uppercase tracking-[0.16em] transition-colors cursor-pointer backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] ${
               slideshowActive
                 ? 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
                 : 'bg-background/80 border-white/15 text-secondary hover:text-white hover:border-white/30'
             }`}
           >
-            {slideshowActive ? (
-              <>
-                <Pause size={14} />
-                <span>Stop Slideshow</span>
-              </>
-            ) : (
-              <>
-                <Play size={14} />
-                <span>Slideshow</span>
-              </>
-            )}
+            <span
+              className={`absolute inset-0 flex items-center justify-center gap-2 whitespace-nowrap leading-none transition-opacity ${
+                slideshowActive ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
+            >
+              <span className="flex h-4 w-4 items-center justify-center"><Play size={14} /></span>
+              <span className="leading-none">Slideshow</span>
+            </span>
+            <span
+              className={`absolute inset-0 flex items-center justify-center gap-2 whitespace-nowrap leading-none transition-opacity ${
+                slideshowActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
+            >
+              <span className="flex h-4 w-4 items-center justify-center"><Pause size={14} /></span>
+              <span className="leading-none">Stop Slideshow</span>
+            </span>
           </button>
-        </div>
+        </div>,
+        document.body
       )}
 
       <AnimatePresence>
-        {slideshowActive && (
+        {slideshowActive && createPortal(
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-24 left-1/2 -translate-x-1/2 z-[130] px-5 py-2.5 rounded-full bg-background/85 backdrop-blur-md border border-primary/40 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[130] px-5 py-2.5 rounded-full bg-background/85 backdrop-blur-md border border-primary/40 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
           >
             <span className="text-primary font-tech text-[10px] uppercase tracking-[0.2em]">Slideshow active — scroll locked</span>
-          </motion.div>
+          </motion.div>,
+          document.body
         )}
       </AnimatePresence>
 

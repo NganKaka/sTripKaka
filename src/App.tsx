@@ -81,6 +81,8 @@ export default function App() {
   const { scrollYProgress } = useScroll();
   const compassRotate = useTransform(scrollYProgress, [0, 1], [0, 360]);
   const [scrollPercent, setScrollPercent] = useState(0);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [slideshowActive, setSlideshowActive] = useState(false);
 
   useEffect(() => {
     return scrollYProgress.on("change", (latest) => {
@@ -136,7 +138,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen relative text-on-surface selection:bg-primary/30 selection:text-primary flex flex-col overflow-hidden">
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+      {!imageModalOpen && !slideshowActive && <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />}
       
       <main className="flex-grow pt-32 pb-24 px-6 md:px-12 max-w-7xl mx-auto w-full z-10 relative">
         <AnimatePresence mode="wait">
@@ -150,7 +152,7 @@ export default function App() {
             <Suspense fallback={<PageLoading />}>
               {activeTab === 'Dashboard' && <Dashboard setActiveTab={setActiveTab} />}
               {activeTab === 'Journal' && <Archives setActiveTab={setActiveTab} />}
-              {activeTab === 'Gallery' && <GalleryView setActiveTab={setActiveTab} locationId={locationId} />}
+              {activeTab === 'Gallery' && <GalleryView setActiveTab={setActiveTab} locationId={locationId} onImageModalChange={setImageModalOpen} onSlideshowChange={setSlideshowActive} />}
               {activeTab === 'Destinations' && <TripDetail setActiveTab={setActiveTab} locationId={locationId} />}
               {activeTab === 'Admin' && <AdminPanel />}
               {activeTab === 'Stats' && <Stats setActiveTab={setActiveTab} />}
@@ -162,6 +164,7 @@ export default function App() {
       <div className="z-10 relative"><Footer /></div>
 
       {/* HUD Compass */}
+      {!imageModalOpen && !slideshowActive && (
       <div className="fixed bottom-8 left-8 z-50 flex items-center gap-4 bg-surface-container/60 backdrop-blur-md px-5 py-3 rounded-full border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
         <div className="relative w-10 h-10 rounded-full border-2 border-primary/30 flex items-center justify-center bg-surface-container-high/80 shadow-[inset_0_0_10px_rgba(233,195,73,0.1)]">
           <div className="absolute top-1 text-[7px] font-tech text-primary/80 font-bold">N</div>
@@ -181,6 +184,7 @@ export default function App() {
           </span>
         </div>
       </div>
+      )}
 
       <MusicPlayerHUD />
 
