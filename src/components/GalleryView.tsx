@@ -696,9 +696,10 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
           : 'text-secondary/40';
 
       return (
-        <button
+        <motion.button
           key={`form-star-${value}`}
           type="button"
+          whileTap={{ scale: 0.96 }}
           onClick={() => handleSelectStar(value)}
           onMouseEnter={() => setHoverStars(value)}
           onMouseLeave={() => setHoverStars(null)}
@@ -706,7 +707,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
           aria-label={`Rate ${value} star${value > 1 ? 's' : ''}`}
         >
           <Star size={20} className={`${className} transition-all duration-200`} />
-        </button>
+        </motion.button>
       );
     });
 
@@ -929,13 +930,14 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
       />
 
       <div className="flex items-center">
-        <button
+        <motion.button
           onClick={() => setActiveTab(`Destinations:${locationId}`)}
+          whileTap={{ scale: 0.96 }}
           className="flex items-center gap-2 text-secondary hover:text-cyan-400 transition-colors font-tech text-xs tracking-widest group cursor-pointer drop-shadow-sm"
         >
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform stroke-[2]" />
           <span>RETURN TO MISSION</span>
-        </button>
+        </motion.button>
       </div>
 
       <section className="relative rounded-2xl overflow-hidden min-h-[600px] flex items-end pb-16 px-8 md:px-16 glass-card ghost-border ambient-shadow group">
@@ -1056,9 +1058,10 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
           {hasTagFilters && (
             <div className="pl-16 md:pl-28">
               <div className="flex flex-wrap items-center gap-2">
-                <button
+                <motion.button
                   type="button"
                   onClick={() => setActiveTag(null)}
+                  whileTap={{ scale: 0.96 }}
                   className={`px-3 py-1.5 rounded-full text-[10px] font-tech uppercase tracking-wider border transition-all cursor-pointer ${
                     activeTag === null
                       ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
@@ -1066,12 +1069,13 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                   }`}
                 >
                   All
-                </button>
+                </motion.button>
                 {availableTags.map(tag => (
-                  <button
+                  <motion.button
                     key={`tag-filter-${tag}`}
                     type="button"
                     onClick={() => setActiveTag(current => current === tag ? null : tag)}
+                    whileTap={{ scale: 0.96 }}
                     className={`px-3 py-1.5 rounded-full text-[10px] font-tech uppercase tracking-wider border transition-all cursor-pointer ${
                       activeTag === tag
                         ? 'border-primary/60 bg-primary/20 text-primary'
@@ -1079,7 +1083,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                     }`}
                   >
                     {tag}
-                  </button>
+                  </motion.button>
                 ))}
               </div>
             </div>
@@ -1155,9 +1159,9 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
               <div className="space-y-2">
                 <label className="text-secondary text-xs font-tech uppercase tracking-[0.2em] block">Your Rating</label>
                 <div className="flex items-center gap-1">{renderEditableStars()}</div>
-                <button type="button" onClick={clearRating} className="text-[10px] text-secondary/70 hover:text-primary font-tech uppercase tracking-[0.2em] transition-colors cursor-pointer">
+                <motion.button type="button" onClick={clearRating} whileTap={{ scale: 0.96 }} className="text-[10px] text-secondary/70 hover:text-primary font-tech uppercase tracking-[0.2em] transition-colors cursor-pointer">
                   Clear rating
-                </button>
+                </motion.button>
               </div>
 
               <div className="space-y-2">
@@ -1166,7 +1170,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                   value={nickname}
                   onChange={(event) => setNickname(event.target.value)}
                   placeholder="Guest"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-shadow duration-200"
                 />
               </div>
 
@@ -1177,19 +1181,20 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                   onChange={(event) => setComment(event.target.value)}
                   rows={4}
                   placeholder="Share your thoughts about this location..."
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-colors resize-none"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-shadow duration-200 resize-none"
                 />
               </div>
 
               {reviewError && <p className="text-rose-300 text-sm">{reviewError}</p>}
 
-              <button
+              <motion.button
                 type="submit"
+                whileTap={{ scale: 0.96 }}
                 disabled={isSubmitDisabled}
                 className="px-6 py-3 rounded-xl border border-primary/40 text-primary font-headline text-xs uppercase tracking-[0.15em] hover:bg-primary/10 hover:border-primary transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Submitting...' : 'Send review'}
-              </button>
+              </motion.button>
             </form>
 
             {reviewLoading ? (
@@ -1217,9 +1222,9 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                 ))}
                 {isReviewListExpandable && (
                   <div className="flex justify-center pt-2">
-                    <button type="button" onClick={() => setShowAllReviews(prev => !prev)} className="text-primary text-xs font-tech tracking-[0.2em] uppercase hover:text-cyan-300 transition-colors cursor-pointer">
+                    <motion.button type="button" onClick={() => setShowAllReviews(prev => !prev)} whileTap={{ scale: 0.96 }} className="text-primary text-xs font-tech tracking-[0.2em] uppercase hover:text-cyan-300 transition-colors cursor-pointer">
                       {showAllReviews ? 'Show less' : 'View all'}
-                    </button>
+                    </motion.button>
                   </div>
                 )}
               </div>
@@ -1245,24 +1250,26 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                 <div className="relative">
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-20 flex flex-col gap-2">
                     {canGoPrev && (
-                      <button
+                      <motion.button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); navigateImage(-1); }}
+                        whileTap={{ scale: 0.96 }}
                         className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-background/80 text-on-surface/80 hover:bg-white/10 hover:text-white hover:border-white/30 transition-all cursor-pointer backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
                         aria-label="Previous image"
                       >
                         <ChevronUp size={20} />
-                      </button>
+                      </motion.button>
                     )}
                     {canGoNext && (
-                      <button
+                      <motion.button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); navigateImage(1); }}
+                        whileTap={{ scale: 0.96 }}
                         className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-background/80 text-on-surface/80 hover:bg-white/10 hover:text-white hover:border-white/30 transition-all cursor-pointer backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
                         aria-label="Next image"
                       >
                         <ChevronDown size={20} />
-                      </button>
+                      </motion.button>
                     )}
                   </div>
                   <div
@@ -1289,22 +1296,24 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                         Copied!
                       </span>
                     )}
-                    <button
+                    <motion.button
                       type="button"
                       onClick={() => handleShare(activeImageDisplaySrc, activeImageDisplayAlt)}
+                      whileTap={{ scale: 0.96 }}
                       className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
                       aria-label={`Share ${activeImageDisplayAlt}`}
                     >
                       <Share2 size={15} />
-                    </button>
-                    <button
+                    </motion.button>
+                    <motion.button
                       type="button"
                       onClick={(e) => handleDownload(activeImageDisplaySrc, e)}
+                      whileTap={{ scale: 0.96 }}
                       className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-background/70 text-on-surface/80 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
                       aria-label={`Download ${activeImageDisplayAlt}`}
                     >
                       <Download size={16} />
-                    </button>
+                    </motion.button>
                   </div>
                 </div>
                 </div>
@@ -1357,13 +1366,14 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
                         />
                         <div className="flex items-center justify-between px-3 pb-2">
                           <span className="text-[9px] font-tech uppercase tracking-[0.16em] text-white/30">{imageNoteComment.length}/150</span>
-                          <button
+                          <motion.button
                             type="submit"
+                            whileTap={{ scale: 0.96 }}
                             disabled={isImageNoteSubmitDisabled}
                             className="rounded-full bg-primary/14 px-3 py-1 text-[10px] font-tech uppercase tracking-[0.18em] text-primary hover:bg-primary/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {imageNoteSubmitting ? '...' : 'Send'}
-                          </button>
+                          </motion.button>
                         </div>
                       </div>
                       {imageNoteError && <p className="px-1 text-xs text-rose-300">{imageNoteError}</p>}
@@ -1380,9 +1390,10 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
 
       {!loading && nodes.length > 0 && !activeImage && createPortal(
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <button
+          <motion.button
             type="button"
             onClick={slideshowActive ? stopSlideshow : startSlideshow}
+            whileTap={{ scale: 0.96 }}
             className={`relative grid place-items-center overflow-hidden rounded-full border font-body text-[10px] uppercase tracking-[0.16em] transition-all cursor-pointer backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] ${
               slideshowActive
                 ? 'h-7 w-32 bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
@@ -1405,7 +1416,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
               <span className="flex h-4 w-4 items-center justify-center"><Pause size={14} /></span>
               <span className="leading-none">Stop</span>
             </span>
-          </button>
+          </motion.button>
         </div>,
         document.body
       )}

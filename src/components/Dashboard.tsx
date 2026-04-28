@@ -277,13 +277,13 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
             Người ta đi xa không phải để tìm nơi trốn chạy, mà để tìm một thế giới quan rộng lớn hơn.
           </p>
           <div className="flex gap-4 mt-8">
-            <button 
+            <motion.button
+              whileTap={{ scale: 0.96 }}
               onClick={() => setActiveTab('Journal')}
-              className="bg-primary text-background px-8 py-4 rounded-xl text-sm font-bold tracking-wide hover:scale-105 transition-all shadow-[0_0_20px_rgba(233,195,73,0.6)] hover:shadow-[0_0_40px_rgba(233,195,73,1)] border border-primary/50 relative overflow-hidden group cursor-pointer"
+              className="shimmer-sweep bg-primary text-background px-8 py-4 rounded-xl text-sm font-bold tracking-wide hover:scale-105 transition-all shadow-[0_0_20px_rgba(233,195,73,0.6)] hover:shadow-[0_0_40px_rgba(233,195,73,1)] border border-primary/50 cursor-pointer"
             >
               <span className="relative z-10">Explore Chapters</span>
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-            </button>
+            </motion.button>
             <button
               onClick={() => mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               className="glass-card text-on-surface px-8 py-4 rounded-xl text-sm font-bold tracking-wide border border-cyan-400/30 hover:border-cyan-300/70 hover:bg-cyan-400/10 hover:text-cyan-200 hover:scale-105 hover:shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-all duration-300 cursor-pointer"
@@ -401,9 +401,9 @@ Một sự tái hiện trực quan về những hành trình đã qua. Mỗi đi
             <h2 className="font-headline text-3xl font-bold tracking-tight text-on-surface">Recent Chapters</h2>
             <p className="text-secondary mt-2 font-body">Real-time coordinates and journals from the database.</p>
           </div>
-          <button onClick={() => setActiveTab('Journal')} className="text-primary font-bold text-sm tracking-wide hover:underline underline-offset-8 transition-all cursor-pointer">
+          <motion.button onClick={() => setActiveTab('Journal')} whileTap={{ scale: 0.96 }} className="text-primary font-bold text-sm tracking-wide hover:underline underline-offset-8 transition-all cursor-pointer">
             View Journey Log
-          </button>
+          </motion.button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

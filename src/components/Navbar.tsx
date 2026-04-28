@@ -150,24 +150,33 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
 
         <div className="hidden md:flex items-center space-x-8">
           {tabs.map((tab) => (
-            <button
+            <motion.button
               key={tab}
               onClick={() => setActiveTab(tab)}
+              whileTap={{ scale: 0.96 }}
               className={`font-headline tracking-tighter uppercase text-[12px] font-bold transition-all duration-300 relative pb-1 px-2 py-1 rounded-md cursor-pointer ${
                 activeTab === tab
-                  ? "text-primary border-b-2 border-primary bg-primary/10 shadow-[0_0_14px_rgba(233,195,73,0.18)]"
+                  ? "text-primary border-b-2 border-primary shadow-[0_0_14px_rgba(233,195,73,0.18)]"
                   : "text-secondary/60 hover:text-cyan-300 hover:bg-cyan-400/10"
               }`}
             >
-              {tab}
-            </button>
+              {activeTab === tab && (
+                <motion.span
+                  layoutId="nav-pill"
+                  className="absolute inset-0 rounded-md bg-primary/10"
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                />
+              )}
+              <span className="relative z-10">{tab}</span>
+            </motion.button>
           ))}
         </div>
 
         <div className="flex items-center gap-4">
           <div ref={panelRef} className="relative flex items-center" onMouseLeave={() => setOpen(false)}>
-            <button
+            <motion.button
               onClick={() => setOpen(prev => !prev)}
+              whileTap={{ scale: 0.96 }}
               className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-primary hover:bg-primary/12 hover:scale-110 transition-all cursor-pointer"
               aria-label="Open notifications"
             >
@@ -177,7 +186,7 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                   {unreadBadge}
                 </span>
               )}
-            </button>
+            </motion.button>
 
             {open && <div className="absolute top-full right-0 h-2 w-[340px] bg-transparent" />}
 
@@ -193,14 +202,15 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                   <div className="flex items-center justify-between px-2 py-1 mb-2">
                     <span className="text-[11px] font-tech uppercase tracking-[0.2em] text-primary">Notifications</span>
                     <div className="flex items-center gap-2">
-                      <button
+                      <motion.button
                         type="button"
                         onClick={handleDeleteAllNotifications}
+                        whileTap={{ scale: 0.96 }}
                         disabled={notifications.length === 0}
                         className="text-[10px] font-tech uppercase tracking-[0.15em] text-secondary/70 hover:text-rose-400 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Delete all
-                      </button>
+                      </motion.button>
                       <span className="text-[10px] font-tech uppercase tracking-[0.15em] text-secondary/70">{notifications.length} items</span>
                     </div>
                   </div>
@@ -215,22 +225,23 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                           className={`w-full rounded-xl border px-3 py-3 transition-all ${item.is_read ? 'border-white/5 bg-white/[0.02] hover:bg-white/[0.05]' : 'border-primary/30 bg-primary/10 hover:bg-primary/15'}`}
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <button onClick={() => handleNotificationClick(item)} className="flex-1 text-left cursor-pointer">
+                            <motion.button onClick={() => handleNotificationClick(item)} whileTap={{ scale: 0.99 }} className="flex-1 text-left cursor-pointer">
                               <div className="flex items-start justify-between gap-3">
                                 <p className="text-sm font-semibold text-on-surface leading-snug">{item.title}</p>
                                 {!item.is_read && <span className="w-2 h-2 rounded-full bg-rose-400 mt-1.5 shrink-0" />}
                               </div>
                               <p className="text-xs text-secondary/80 mt-1 leading-relaxed">{item.message}</p>
                               <p className="text-[10px] text-secondary/60 mt-2 font-tech tracking-wider">{formatNotiDate(item.created_at)}</p>
-                            </button>
-                            <button
+                            </motion.button>
+                            <motion.button
                               type="button"
                               onClick={() => handleDeleteNotification(item.id)}
+                              whileTap={{ scale: 0.96 }}
                               className="shrink-0 rounded-full p-1 text-secondary/60 hover:text-rose-400 hover:bg-white/10 transition-colors cursor-pointer"
                               aria-label="Delete notification"
                             >
                               <X size={14} />
-                            </button>
+                            </motion.button>
                           </div>
                         </div>
                       ))}
@@ -241,17 +252,16 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
             </AnimatePresence>
           </div>
 
-          <button className="text-secondary hover:scale-110 transition-transform hidden sm:block cursor-pointer">
+          <motion.button whileTap={{ scale: 0.96 }} className="text-secondary hover:scale-110 transition-transform hidden sm:block cursor-pointer">
             <Settings size={20} />
-          </button>
+          </motion.button>
           <motion.button
             whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.96 }}
             onClick={() => setActiveTab('Journal')}
-            className="bg-primary text-background px-6 py-2 rounded-lg text-xs font-bold tracking-wide shadow-[0_0_20px_rgba(233,195,73,0.6)] hover:shadow-[0_0_30px_rgba(233,195,73,1)] border border-primary/50 transition-shadow cursor-pointer relative overflow-hidden group"
+            className="shimmer-sweep bg-primary text-background px-6 py-2 rounded-lg text-xs font-bold tracking-wide shadow-[0_0_20px_rgba(233,195,73,0.6)] hover:shadow-[0_0_30px_rgba(233,195,73,1)] border border-primary/50 transition-shadow cursor-pointer"
           >
             <span className="relative z-10">Begin Journey</span>
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
           </motion.button>
         </div>
       </div>

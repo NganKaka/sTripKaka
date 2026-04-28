@@ -53,9 +53,10 @@ const Footer = memo(function Footer() {
         </div>
 
         <div className="w-full max-w-3xl mx-auto">
-          <button
+          <motion.button
             type="button"
             onClick={() => setShowSupportOptions((prev) => !prev)}
+            whileTap={{ scale: 0.98 }}
             className="group mx-auto flex w-full max-w-md items-center justify-between rounded-[28px] border border-cyan-300/25 bg-cyan-950/10 px-6 py-4 text-left text-cyan-50 shadow-[0_0_25px_rgba(34,211,238,0.10)] backdrop-blur-sm transition-all hover:border-cyan-300/50 hover:bg-cyan-900/20 hover:shadow-[0_0_30px_rgba(34,211,238,0.18)]"
           >
             <div className="flex items-center gap-4">
@@ -68,7 +69,7 @@ const Footer = memo(function Footer() {
               </div>
             </div>
             <ChevronDown size={18} className={`text-cyan-200 transition-transform duration-300 ${showSupportOptions ? 'rotate-180' : ''}`} />
-          </button>
+          </motion.button>
 
           <AnimatePresence>
             {showSupportOptions && (

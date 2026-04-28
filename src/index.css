@@ -99,6 +99,28 @@
   @apply shadow-[0_40px_40px_rgba(0,0,0,0.4)];
 }
 
+@layer utilities {
+  .shimmer-sweep {
+    @apply relative overflow-hidden;
+  }
+
+  .shimmer-sweep::after {
+    content: '';
+    @apply absolute inset-0 translate-x-[-200%] bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-[-20deg];
+    transition: transform 0.8s ease;
+  }
+
+  .shimmer-sweep:hover::after {
+    transform: translateX(200%) skewX(-20deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shimmer-sweep::after {
+      display: none;
+    }
+  }
+}
+
 @keyframes border-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }

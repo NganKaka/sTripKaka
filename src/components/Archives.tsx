@@ -162,7 +162,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
                 setItems([]);
                 setHasMore(false);
               }}
-              className="w-full rounded-3xl border border-cyan-200/25 bg-cyan-950/10 py-4 pl-12 pr-4 font-body text-sm text-cyan-50/95 backdrop-blur-sm transition-all hover:border-cyan-200/50 hover:bg-cyan-900/15 hover:shadow-[0_0_24px_rgba(34,211,238,0.14)] focus:outline-none focus:border-cyan-200/65 focus:bg-cyan-900/20"
+              className="w-full rounded-3xl border border-cyan-200/25 bg-cyan-950/10 py-4 pl-12 pr-4 font-body text-sm text-cyan-50/95 backdrop-blur-sm transition-all hover:border-cyan-200/50 hover:bg-cyan-900/15 hover:shadow-[0_0_24px_rgba(34,211,238,0.14)] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 focus:bg-cyan-900/20 transition-shadow duration-200"
             />
           </div>
         </div>
@@ -171,17 +171,18 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
       <div className="flex items-center gap-4">
         <span className="font-headline text-[10px] uppercase tracking-widest text-secondary/50">Filters:</span>
         <div ref={filterDropdownRef} className="relative w-full max-w-xs">
-          <button
+          <motion.button
             type="button"
             onClick={() => setIsFilterOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between rounded-3xl border border-cyan-200/30 bg-cyan-950/15 px-4 py-3 text-[10px] font-bold tracking-widest text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.10)] backdrop-blur-sm transition-all hover:border-cyan-200/60 hover:bg-cyan-900/20 hover:shadow-[0_0_24px_rgba(34,211,238,0.18)] focus:outline-none focus:border-cyan-200/70"
+            whileTap={{ scale: 0.96 }}
+            className="flex w-full items-center justify-between rounded-3xl border border-cyan-200/30 bg-cyan-950/15 px-4 py-3 text-[10px] font-bold tracking-widest text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.10)] backdrop-blur-sm transition-all hover:border-cyan-200/60 hover:bg-cyan-900/20 hover:shadow-[0_0_24px_rgba(34,211,238,0.18)] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-shadow duration-200"
           >
             <span>{activeFilter}</span>
             <ChevronDown
               size={16}
               className={`text-cyan-200 transition-transform duration-300 ${isFilterOpen ? 'rotate-180' : ''}`}
             />
-          </button>
+          </motion.button>
 
           <AnimatePresence>
             {isFilterOpen && (
@@ -194,7 +195,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
               >
                 <div className="space-y-1">
                   {ARCHIVE_FILTERS.map((filter) => (
-                    <button
+                    <motion.button
                       key={filter}
                       type="button"
                       onClick={() => {
@@ -203,10 +204,11 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
                         setHasMore(false);
                         setIsFilterOpen(false);
                       }}
+                      whileTap={{ scale: 0.98 }}
                       className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-[10px] font-bold tracking-widest transition-all ${activeFilter === filter ? 'bg-cyan-400/15 text-cyan-100' : 'text-cyan-50/85 hover:bg-cyan-400/10 hover:text-cyan-100'}`}
                     >
                       {filter}
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
               </motion.div>
