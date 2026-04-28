@@ -11,7 +11,7 @@ Open-Meteo current-weather service with lightweight in-memory TTL caching.
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional
 
 import httpx
@@ -103,9 +103,7 @@ def _get_cached(key: str, now: float) -> Optional[WeatherResult]:
     entry = _cache.get(key)
     if entry is None:
         return None
-    result = entry.result
-    result.stale = now > entry.expires
-    return result
+    return replace(entry.result, stale=now > entry.expires)
 
 
 def _set_cache(key: str, result: WeatherResult):
@@ -130,15 +128,15 @@ def _set_invalid_coord(key: str):
 # Public helpers
 # ---------------------------------------------------------------------------
 
-def parse_coordinate(value: Optional[str]) -> Optional[float]:
-    """Return a float for a coordinate string, or None if unparseable."""
+def parse_coordinate(value: Optional[str], *, min_value: float, max_value: float) -> Optional[float]:
+    """Return a float for a coordinate string, or None if out of range."""
     if value is None:
         return None
     try:
         f = float(value)
     except (TypeError, ValueError):
         return None
-    if not (-90.0 <= f <= 90.0):
+    if not (min_value <= f <= max_value):
         return None
     return f
 
@@ -150,8 +148,8 @@ async def fetch_weather(lat_str: Optional[str], lng_str: Optional[str]) -> Optio
     Returns None when coordinates are missing/invalid AND no stale cache
     exists.  Stale cache is returned on upstream errors.
     """
-    lat = parse_coordinate(lat_str)
-    lng = parse_coordinate(lng_str)
+    lat = parse_coordinate(lat_str, min_value=-90.0, max_value=90.0)
+    lng = parse_coordinate(lng_str, min_value=-180.0, max_value=180.0)
     if lat is None or lng is None:
         return None
 
@@ -183,15 +181,17 @@ async def fetch_weather(lat_str: Optional[str], lng_str: Optional[str]) -> Optio
             )
         if resp.status_code != 200:
             logger.warning("Open-Meteo returned %d for (%s,%s)", resp.status_code, lat, lng)
-            _set_invalid_coord(key)
-            return cached  # may be stale
+            if cached is not None and now - cached.fetched_at < STALE_GRACE:
+                return replace(cached, stale=True)
+            return None
 
         body = resp.json()
         cw = body.get("current_weather")
         if not cw:
             logger.warning("Open-Meteo missing current_weather for (%s,%s)", lat, lng)
-            _set_invalid_coord(key)
-            return cached
+            if cached is not None and now - cached.fetched_at < STALE_GRACE:
+                return replace(cached, stale=True)
+            return None
 
         result = WeatherResult(
             condition=_map_condition(cw.get("weathercode", -1)),
