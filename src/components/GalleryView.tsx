@@ -235,6 +235,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
   const slideshowTimersRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nodeRefsRef = useRef<Map<number, HTMLElement>>(new Map());
   const slideshowActiveRef = useRef(false);
+  const slideshowScrollAnimRef = useRef<number | null>(null);
 
   const content = LOCATION_CONTENT[locationId] || DEFAULT_CONTENT;
   const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 3);
@@ -558,6 +559,45 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
     }
   }, []);
 
+  const smoothScrollToElement = useCallback((el: HTMLElement) => {
+    return new Promise<void>((resolve) => {
+      const viewportH = window.innerHeight;
+      const rect = el.getBoundingClientRect();
+      const currentY = window.scrollY;
+      const targetY = currentY + rect.top + rect.height / 2 - viewportH / 2;
+      const startY = currentY;
+      const distance = targetY - startY;
+
+      if (Math.abs(distance) < 2) {
+        resolve();
+        return;
+      }
+
+      const duration = 1200;
+      const startTime = performance.now();
+
+      const tick = (now: number) => {
+        if (!slideshowActiveRef.current) {
+          slideshowScrollAnimRef.current = null;
+          resolve();
+          return;
+        }
+        const elapsed = now - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+        window.scrollTo(0, startY + distance * eased);
+        if (t < 1) {
+          slideshowScrollAnimRef.current = requestAnimationFrame(tick);
+        } else {
+          slideshowScrollAnimRef.current = null;
+          resolve();
+        }
+      };
+
+      slideshowScrollAnimRef.current = requestAnimationFrame(tick);
+    });
+  }, []);
+
   const startSlideshow = useCallback(() => {
     setSlideshowActive(true);
     slideshowActiveRef.current = true;
@@ -566,14 +606,16 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
     document.body.style.overflow = 'hidden';
     document.body.style.paddingRight = `${scrollbarWidth}px`;
 
-    const advance = () => {
+    const advance = async () => {
       if (!slideshowActiveRef.current) return;
 
       const idx = slideshowIndexRef.current;
       const el = nodeRefsRef.current.get(idx);
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await smoothScrollToElement(el);
       }
+
+      if (!slideshowActiveRef.current) return;
 
       const nextIdx = idx + 1;
       if (nodeRefsRef.current.has(nextIdx)) {
@@ -587,7 +629,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
     };
 
     advance();
-  }, []);
+  }, [smoothScrollToElement]);
 
   const stopSlideshow = useCallback(() => {
     setSlideshowActive(false);
@@ -719,7 +761,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc' }: G
         </div>
       </section>
 
-      <div ref={galleryContentRef}>
+      <div ref={galleryContentRef} className="space-y-32">
       {loading ? (
         <div className="flex items-center justify-center py-24">
           <div className="flex flex-col items-center gap-4">
