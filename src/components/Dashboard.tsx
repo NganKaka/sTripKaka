@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion';
-import { Globe, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
-import InteractiveMap from './InteractiveMap';
+import { Globe, Image as ImageIcon, MapPin } from 'lucide-react';
 import { apiUrl } from '../lib/api';
+
+const InteractiveMap = lazy(() => import('./InteractiveMap'));
 
 interface DbLocation {
   id: string;
@@ -44,11 +45,12 @@ const countLocationImages = (location: DbLocation): number => {
 const computeMetrics = (locations: DbLocation[]): MetricItem[] => {
   const expeditionCount = locations.length;
   const totalImages = locations.reduce((sum, location) => sum + countLocationImages(location), 0);
+  const uniqueStops = new Set(locations.map(location => location.name.trim()).filter(Boolean)).size;
 
   return [
     { icon: Globe, value: String(expeditionCount), label: 'Expeditions' },
     { icon: ImageIcon, value: String(totalImages), label: 'Total Images' },
-    { icon: MapIcon, value: '0', label: 'International Explored' },
+    { icon: MapPin, value: String(uniqueStops), label: 'Places Visited' },
   ];
 };
 
@@ -61,7 +63,7 @@ const fallbackChapters = [
 const fallbackMetrics: MetricItem[] = [
   { icon: Globe, value: String(fallbackChapters.length), label: 'Expeditions' },
   { icon: ImageIcon, value: '0', label: 'Total Images' },
-  { icon: MapIcon, value: '0', label: 'International Explored' },
+  { icon: MapPin, value: String(fallbackChapters.length), label: 'Places Visited' },
 ];
 
 const getLatestTripName = (locations: DbLocation[]) => {
@@ -77,6 +79,20 @@ const toRecentCards = (locations: DbLocation[]) =>
     .slice(0, 3);
 
 const toProvinceCount = (locations: DbLocation[]) => locations.length;
+
+function MapPanelPlaceholder({ statusText }: { statusText: string }) {
+  return (
+    <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.4)] bg-surface-container/30">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),transparent_55%)]" />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-center px-6">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <span className="font-tech text-[10px] tracking-widest text-primary/80 uppercase">{statusText}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface DashboardProps {
   setActiveTab: (tab: string) => void;
@@ -237,32 +253,46 @@ import { useNavigate } from 'react-router-dom';
 export default function Dashboard({ setActiveTab }: DashboardProps) {
   const navigate = useNavigate();
   const mapSectionRef = useRef<HTMLElement | null>(null);
+  const shouldLoadMap = useInView(mapSectionRef, { once: true, margin: '0px 0px 300px 0px' });
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 1000], [0, -150]);
   const y2 = useTransform(scrollY, [0, 1000], [0, -250]);
   const y3 = useTransform(scrollY, [0, 1000], [0, -80]);
   const [dbChapters, setDbChapters] = useState<DbLocation[]>([]);
+  const [isLoadingChapters, setIsLoadingChapters] = useState(true);
+  const [chapterLoadError, setChapterLoadError] = useState(false);
 
-  useEffect(() => {
+  const loadChapters = () => {
+    setIsLoadingChapters(true);
+    setChapterLoadError(false);
     fetch(apiUrl('/locations'))
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch chapters');
+        return res.json();
+      })
       .then((data: DbLocation[]) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setDbChapters(data);
-        } else {
-          setDbChapters([]);
-        }
+        setDbChapters(Array.isArray(data) && data.length > 0 ? data : []);
       })
       .catch(err => {
         console.error('Error fetching chapters:', err);
         setDbChapters([]);
-      });
+        setChapterLoadError(true);
+      })
+      .finally(() => setIsLoadingChapters(false));
+  };
+
+  useEffect(() => {
+    loadChapters();
   }, []);
 
   const displayList = dbChapters.length > 0 ? toRecentCards(dbChapters) : fallbackChapters;
   const metrics = dbChapters.length > 0 ? computeMetrics(dbChapters) : fallbackMetrics;
   const provinceCount = dbChapters.length > 0 ? toProvinceCount(dbChapters) : fallbackChapters.length;
   const recentTripName = dbChapters.length > 0 ? getLatestTripName(dbChapters) : fallbackChapters[0].name;
+  const latestTripId = displayList[0]?.id;
+  const isUsingFallback = !isLoadingChapters && dbChapters.length === 0;
+  const statusLabel = chapterLoadError ? 'Using sample journeys while live trips are unavailable.' : 'Showing sample journeys until live trips are added.';
+  const statusTone = chapterLoadError ? 'border-rose-400/30 bg-rose-500/10 text-rose-100' : 'border-cyan-400/25 bg-cyan-500/10 text-cyan-100';
 
   return (
     <div className="space-y-24">
@@ -276,17 +306,48 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
           <p className="text-secondary text-lg md:text-xl max-w-lg leading-relaxed font-body">
             Người ta đi xa không phải để tìm nơi trốn chạy, mà để tìm một thế giới quan rộng lớn hơn.
           </p>
-          <div className="flex gap-4 mt-8">
+
+          {isLoadingChapters && (
+            <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-tech uppercase tracking-[0.15em] text-secondary/70">
+              <span className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
+              Loading live trips...
+            </div>
+          )}
+
+          {isUsingFallback && (
+            <div className={`inline-flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-tech uppercase tracking-[0.12em] ${statusTone}`}>
+              <span>{statusLabel}</span>
+              {chapterLoadError && (
+                <button
+                  type="button"
+                  onClick={loadChapters}
+                  className="rounded-md border border-current/40 px-2 py-1 text-[10px] tracking-[0.14em] hover:bg-white/10 transition-colors"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 mt-8">
             <motion.button
               whileTap={{ scale: 0.96 }}
               onClick={() => setActiveTab('Journal')}
-              className="shimmer-sweep bg-primary text-background px-8 py-4 rounded-xl text-sm font-bold tracking-wide hover:scale-105 transition-all shadow-[0_0_20px_rgba(233,195,73,0.6)] hover:shadow-[0_0_40px_rgba(233,195,73,1)] border border-primary/50 cursor-pointer"
+              className="shimmer-sweep w-full sm:w-auto bg-primary text-background px-8 py-4 rounded-xl text-sm font-bold tracking-wide hover:scale-105 transition-all shadow-[0_0_20px_rgba(233,195,73,0.6)] hover:shadow-[0_0_40px_rgba(233,195,73,1)] border border-primary/50 cursor-pointer"
             >
-              <span className="relative z-10">Explore Chapters</span>
+              <span className="relative z-10">Explore Trips</span>
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              onClick={() => latestTripId && navigate(`/mission-detail/${latestTripId}`)}
+              disabled={!latestTripId}
+              className="glass-card w-full sm:w-auto text-on-surface px-8 py-3 sm:py-4 rounded-xl text-sm font-bold tracking-wide border border-cyan-400/30 hover:border-cyan-300/70 hover:bg-cyan-400/10 hover:text-cyan-200 hover:scale-105 hover:shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-all duration-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Open Latest Trip
             </motion.button>
             <button
               onClick={() => mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              className="glass-card text-on-surface px-8 py-4 rounded-xl text-sm font-bold tracking-wide border border-cyan-400/30 hover:border-cyan-300/70 hover:bg-cyan-400/10 hover:text-cyan-200 hover:scale-105 hover:shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-all duration-300 cursor-pointer"
+              className="glass-card w-full sm:w-auto text-on-surface px-8 py-3 sm:py-4 rounded-xl text-sm font-bold tracking-wide border border-cyan-400/30 hover:border-cyan-300/70 hover:bg-cyan-400/10 hover:text-cyan-200 hover:scale-105 hover:shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-all duration-300 cursor-pointer"
             >
               View Map
             </button>
@@ -350,11 +411,17 @@ Một sự tái hiện trực quan về những hành trình đã qua. Mỗi đi
           </div>
 
           <div className="relative">
-            <InteractiveMap
-              provinceCount={provinceCount}
-              recentTripName={recentTripName}
-              onOpenExpeditionLog={(locationId) => navigate(`/mission-detail/${locationId}`)}
-            />
+            {shouldLoadMap ? (
+              <Suspense fallback={<MapPanelPlaceholder statusText="Loading interactive map..." />}>
+                <InteractiveMap
+                  provinceCount={provinceCount}
+                  recentTripName={recentTripName}
+                  onOpenExpeditionLog={(locationId) => navigate(`/mission-detail/${locationId}`)}
+                />
+              </Suspense>
+            ) : (
+              <MapPanelPlaceholder statusText="Map will load when you scroll here." />
+            )}
           </div>
         </div>
       </motion.section>
@@ -399,7 +466,9 @@ Một sự tái hiện trực quan về những hành trình đã qua. Mỗi đi
         <div className="flex justify-between items-end mr-4">
           <div>
             <h2 className="font-headline text-3xl font-bold tracking-tight text-on-surface">Recent Chapters</h2>
-            <p className="text-secondary mt-2 font-body">Real-time coordinates and journals from the database.</p>
+            <p className="text-secondary mt-2 font-body">
+              {isUsingFallback ? 'Sample journeys are shown while live trip data is unavailable.' : 'Real-time coordinates and journals from the database.'}
+            </p>
           </div>
           <motion.button onClick={() => setActiveTab('Journal')} whileTap={{ scale: 0.96 }} className="text-primary font-bold text-sm tracking-wide hover:underline underline-offset-8 transition-all cursor-pointer">
             View Journey Log

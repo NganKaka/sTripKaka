@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, BarChart3, Clock3, Flame, Star } from 'lucide-react';
 import { MagneticCard } from './Dashboard';
-import { apiUrl, fetchPopularThisWeek, getRecentViews } from '../lib/api';
+import { apiUrl, fetchPopularThisWeek, fetchTrafficSeries, getRecentViews } from '../lib/api';
 
 type LocationItem = {
   id: string;
@@ -23,10 +23,24 @@ interface PopularWeeklyResponse {
   items: LocationItem[];
 }
 
+type TrafficRange = 7 | 30 | 90;
+
 type TrafficPoint = {
   label: string;
   views: number;
 };
+
+interface TrafficSeriesResponse {
+  range_days: TrafficRange;
+  total_views: number;
+  points: TrafficPoint[];
+}
+
+const trafficRangeOptions: { value: TrafficRange; label: string; description: string }[] = [
+  { value: 7, label: '7 days', description: 'A short pulse of total trip views from the last week.' },
+  { value: 30, label: '30 days', description: 'A monthly view of how often trips are being revisited.' },
+  { value: 90, label: '90 days', description: 'A longer seasonal curve for sustained trip attention.' },
+];
 
 function TrafficLineGraph({ points }: { points: TrafficPoint[] }) {
   const width = 920;
@@ -190,8 +204,11 @@ function StatsSection({
 export default function Stats({ setActiveTab }: StatsProps) {
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [popularThisWeek, setPopularThisWeek] = useState<LocationItem[]>([]);
+  const [trafficRange, setTrafficRange] = useState<TrafficRange>(7);
+  const [trafficSeries, setTrafficSeries] = useState<TrafficSeriesResponse>({ range_days: 7, total_views: 0, points: [] });
   const [loadingLocations, setLoadingLocations] = useState(true);
   const [loadingPopular, setLoadingPopular] = useState(true);
+  const [loadingTraffic, setLoadingTraffic] = useState(true);
 
   useEffect(() => {
     setLoadingLocations(true);
@@ -211,6 +228,20 @@ export default function Stats({ setActiveTab }: StatsProps) {
       .finally(() => setLoadingPopular(false));
   }, []);
 
+  useEffect(() => {
+    setLoadingTraffic(true);
+    fetchTrafficSeries(trafficRange)
+      .then((data: TrafficSeriesResponse) => {
+        setTrafficSeries({
+          range_days: data.range_days,
+          total_views: Number(data.total_views) || 0,
+          points: Array.isArray(data.points) ? data.points : [],
+        });
+      })
+      .catch(() => setTrafficSeries({ range_days: trafficRange, total_views: 0, points: [] }))
+      .finally(() => setLoadingTraffic(false));
+  }, [trafficRange]);
+
   const recentlyViewed = useMemo(() => {
     const ids = getRecentViews();
     if (!ids.length || !locations.length) return [];
@@ -229,12 +260,8 @@ export default function Stats({ setActiveTab }: StatsProps) {
       .slice(0, 6);
   }, [locations]);
 
-  const trafficPoints = useMemo<TrafficPoint[]>(() => {
-    return popularThisWeek.map((item, index) => ({
-      label: `#${index + 1}`,
-      views: item.weekly_views || 0,
-    }));
-  }, [popularThisWeek]);
+  const trafficPoints = trafficSeries.points;
+  const selectedTrafficRange = trafficRangeOptions.find(option => option.value === trafficRange) || trafficRangeOptions[0];
 
   const topAttentionLocation = popularThisWeek[0] || null;
   const isPageLoading = loadingLocations && loadingPopular;
@@ -282,29 +309,48 @@ export default function Stats({ setActiveTab }: StatsProps) {
             <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
               <Flame size={18} />
             </div>
-            <span className="text-primary font-tech tracking-[0.2em] font-bold text-xs uppercase">Popular this week</span>
+            <span className="text-primary font-tech tracking-[0.2em] font-bold text-xs uppercase">Traffic insights</span>
           </div>
-          <h2 className="font-headline text-3xl md:text-4xl font-bold tracking-tight text-on-surface">Most viewed right now</h2>
-          <p className="text-secondary text-base md:text-lg max-w-3xl leading-relaxed">These are the locations drawing the most attention across real mission-detail and gallery visits over the last 7 days.</p>
+          <h2 className="font-headline text-3xl md:text-4xl font-bold tracking-tight text-on-surface">Total trip views over time</h2>
+          <p className="text-secondary text-base md:text-lg max-w-3xl leading-relaxed">{selectedTrafficRange.description}</p>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)] gap-8 items-start">
           <div className="glass-card rounded-[1.75rem] ghost-border p-6 md:p-8 overflow-hidden relative">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.10),transparent_40%)]" />
             <div className="relative z-10 space-y-5">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                   <p className="text-[10px] font-tech uppercase tracking-[0.2em] text-secondary/55">Traffic curve</p>
-                  <h3 className="font-headline text-2xl font-bold tracking-tight text-on-surface">Attention trend</h3>
+                  <h3 className="font-headline text-2xl font-bold tracking-tight text-on-surface">{trafficSeries.total_views} total views</h3>
+                  <p className="text-secondary/70 text-sm mt-1">Daily totals across mission-detail and gallery visits over the last {trafficRange} days.</p>
                 </div>
-                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-tech uppercase tracking-[0.18em] text-secondary/70">
-                  Top {popularThisWeek.length || 0} locations
+                <div className="flex flex-wrap gap-2">
+                  {trafficRangeOptions.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setTrafficRange(option.value)}
+                      className={`rounded-full border px-3 py-1.5 text-[10px] font-tech uppercase tracking-[0.18em] transition-all cursor-pointer ${
+                        trafficRange === option.value
+                          ? 'border-primary/50 bg-primary/15 text-primary shadow-[0_0_18px_rgba(233,195,73,0.18)]'
+                          : 'border-white/10 bg-white/5 text-secondary/70 hover:border-cyan-400/30 hover:text-cyan-200'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {trafficPoints.length === 0 ? (
+              {loadingTraffic ? (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-16 text-center">
-                  <p className="text-secondary/65 font-tech text-xs uppercase tracking-[0.2em]">No weekly traffic yet</p>
+                  <div className="mx-auto mb-4 w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <p className="text-secondary/65 font-tech text-xs uppercase tracking-[0.2em]">Loading traffic curve</p>
+                </div>
+              ) : trafficPoints.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-16 text-center">
+                  <p className="text-secondary/65 font-tech text-xs uppercase tracking-[0.2em]">No traffic yet for this range</p>
                 </div>
               ) : (
                 <TrafficLineGraph points={trafficPoints} />

@@ -568,6 +568,40 @@ def _build_popular_this_week_response(db: Session, request: Request, limit: int 
     }
 
 
+def _build_traffic_series_response(db: Session, range_days: int):
+    normalized_range = range_days if range_days in {7, 30, 90} else 7
+    today = datetime.now(timezone.utc).date()
+    start_date = today - timedelta(days=normalized_range - 1)
+    rows = (
+        db.query(
+            func.date(models.LocationView.viewed_at).label("day"),
+            func.count(models.LocationView.id).label("views"),
+        )
+        .join(models.Location, models.Location.id == models.LocationView.location_id)
+        .filter(models.Location.is_archived == 0, models.LocationView.viewed_at >= start_date)
+        .group_by(func.date(models.LocationView.viewed_at))
+        .order_by(func.date(models.LocationView.viewed_at).asc())
+        .all()
+    )
+    view_map = {str(row.day): int(row.views or 0) for row in rows}
+    points = []
+    total_views = 0
+    for offset in range(normalized_range):
+        current_day = start_date + timedelta(days=offset)
+        key = current_day.isoformat()
+        views = view_map.get(key, 0)
+        total_views += views
+        points.append({
+            "label": current_day.strftime("%d %b"),
+            "views": views,
+        })
+    return {
+        "range_days": normalized_range,
+        "total_views": total_views,
+        "points": points,
+    }
+
+
 def _normalize_location_payload(payload: dict, for_patch: bool = False, existing_location: Optional[models.Location] = None) -> dict:
     normalized = dict(payload)
 
@@ -963,3 +997,8 @@ def get_stats(db: Session = Depends(get_db)):
 @app.get("/api/stats/popular-this-week", response_model=schemas.PopularWeeklyOut, tags=["Stats"])
 def get_popular_this_week(request: Request, limit: int = 6, db: Session = Depends(get_db)):
     return _build_popular_this_week_response(db, request, limit)
+
+
+@app.get("/api/stats/traffic-series", response_model=schemas.TrafficSeriesOut, tags=["Stats"])
+def get_traffic_series(range_days: int = 7, db: Session = Depends(get_db)):
+    return _build_traffic_series_response(db, range_days)

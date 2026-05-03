@@ -168,6 +168,17 @@ class PopularWeeklyOut(BaseModel):
     items: List[LocationWeeklyViewOut]
 
 
+class TrafficPointOut(BaseModel):
+    label: str
+    views: int = 0
+
+
+class TrafficSeriesOut(BaseModel):
+    range_days: int
+    total_views: int = 0
+    points: List[TrafficPointOut]
+
+
 class StatsOut(BaseModel):
     total_locations: int
     total_chapters: int

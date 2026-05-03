@@ -60,4 +60,10 @@ export async function fetchPopularThisWeek(limit = 6) {
   return response.json();
 }
 
+export async function fetchTrafficSeries(rangeDays = 7) {
+  const response = await fetch(apiUrl(`/stats/traffic-series?range_days=${rangeDays}`));
+  if (!response.ok) throw new Error('Failed to fetch traffic series');
+  return response.json();
+}
+
 export { RECENT_VIEWS_LIMIT };

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Settings, X } from 'lucide-react';
+import { Bell, Menu, Settings, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiUrl } from '../lib/api';
 
@@ -25,10 +25,11 @@ interface NotificationsResponse {
 }
 
 export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
-  const tabs = ["Journal", "Stats"];
+  const tabs = ["Trips", "Stats"];
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const formatNotiDate = (value: string) => {
@@ -132,47 +133,75 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
 
   const unreadBadge = useMemo(() => (unreadCount > 99 ? '99+' : String(unreadCount)), [unreadCount]);
 
+  const isTabActive = (tab: string) => {
+    if (tab === 'Trips') return activeTab === 'Journal' || activeTab === 'Destinations';
+    return activeTab === tab;
+  };
+
+  const handleNavClick = (tab: string) => {
+    if (tab === 'Trips') {
+      setActiveTab('Journal');
+      setMobileMenuOpen(false);
+      return;
+    }
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <nav className="fixed top-0 left-0 w-full z-50 bg-background/60 backdrop-blur-lg border-b border-white/5">
-      <div className="max-w-7xl mx-auto flex justify-between items-center px-6 md:px-12 py-6">
-        <div
-          className="text-xl font-black text-primary tracking-tighter cursor-pointer"
-          onClick={() => {
-            if (activeTab === 'Dashboard') {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else {
-              setActiveTab('Dashboard');
-            }
-          }}
-        >
-          sTripKaka
-        </div>
+      <div className="max-w-7xl mx-auto px-6 md:px-12 py-6">
+        <div className="flex justify-between items-center">
+          <div
+            className="text-xl font-black text-primary tracking-tighter cursor-pointer"
+            onClick={() => {
+              if (activeTab === 'Dashboard') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                setActiveTab('Dashboard');
+                setMobileMenuOpen(false);
+              }
+            }}
+          >
+            sTripKaka
+          </div>
 
-        <div className="hidden md:flex items-center space-x-8">
-          {tabs.map((tab) => (
-            <motion.button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              whileTap={{ scale: 0.96 }}
-              className={`font-headline tracking-tighter uppercase text-[12px] font-bold transition-all duration-300 relative pb-1 px-2 py-1 rounded-md cursor-pointer ${
-                activeTab === tab
-                  ? "text-primary border-b-2 border-primary shadow-[0_0_14px_rgba(233,195,73,0.18)]"
-                  : "text-secondary/60 hover:text-cyan-300 hover:bg-cyan-400/10"
-              }`}
-            >
-              {activeTab === tab && (
-                <motion.span
-                  layoutId="nav-pill"
-                  className="absolute inset-0 rounded-md bg-primary/10"
-                  transition={{ duration: 0.25, ease: 'easeOut' }}
-                />
-              )}
-              <span className="relative z-10">{tab}</span>
-            </motion.button>
-          ))}
-        </div>
+          <div className="hidden md:flex items-center space-x-8">
+            {tabs.map((tab) => (
+              <motion.button
+                key={tab}
+                onClick={() => handleNavClick(tab)}
+                whileTap={{ scale: 0.96 }}
+                className={`font-headline tracking-tighter uppercase text-[12px] font-bold transition-all duration-300 relative pb-1 px-2 py-1 rounded-md cursor-pointer ${
+                  isTabActive(tab)
+                    ? "text-primary border-b-2 border-primary shadow-[0_0_14px_rgba(233,195,73,0.18)]"
+                    : "text-secondary/60 hover:text-cyan-300 hover:bg-cyan-400/10"
+                }`}
+              >
+                {isTabActive(tab) && (
+                  <motion.span
+                    layoutId="nav-pill"
+                    className="absolute inset-0 rounded-md bg-primary/10"
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                  />
+                )}
+                <span className="relative z-10">{tab}</span>
+              </motion.button>
+            ))}
+          </div>
 
-        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4">
+          <motion.button
+            type="button"
+            onClick={() => setMobileMenuOpen(prev => !prev)}
+            whileTap={{ scale: 0.96 }}
+            className="inline-flex md:hidden h-9 w-9 items-center justify-center rounded-full text-secondary hover:text-primary hover:bg-primary/10 transition-all cursor-pointer"
+            aria-label="Toggle navigation menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </motion.button>
+
           <div ref={panelRef} className="relative flex items-center" onMouseLeave={() => setOpen(false)}>
             <motion.button
               onClick={() => setOpen(prev => !prev)}
@@ -258,12 +287,55 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.96 }}
-            onClick={() => setActiveTab('Journal')}
-            className="shimmer-sweep bg-primary text-background px-6 py-2 rounded-lg text-xs font-bold tracking-wide shadow-[0_0_20px_rgba(233,195,73,0.6)] hover:shadow-[0_0_30px_rgba(233,195,73,1)] border border-primary/50 transition-shadow cursor-pointer"
+            onClick={() => {
+              setActiveTab('Journal');
+              setMobileMenuOpen(false);
+            }}
+            className="hidden sm:inline-flex shimmer-sweep bg-primary text-background px-6 py-2 rounded-lg text-xs font-bold tracking-wide shadow-[0_0_20px_rgba(233,195,73,0.6)] hover:shadow-[0_0_30px_rgba(233,195,73,1)] border border-primary/50 transition-shadow cursor-pointer"
           >
             <span className="relative z-10">Begin Journey</span>
           </motion.button>
         </div>
+        </div>
+
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+              className="md:hidden mt-4 rounded-xl border border-white/10 bg-background/90 backdrop-blur-md p-2"
+            >
+              <div className="grid gap-1">
+                {tabs.map((tab) => (
+                  <button
+                    key={`mobile-${tab}`}
+                    type="button"
+                    onClick={() => handleNavClick(tab)}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg text-[12px] font-bold uppercase tracking-widest transition-colors ${
+                      isTabActive(tab)
+                        ? 'text-primary bg-primary/10 border border-primary/25'
+                        : 'text-secondary hover:text-cyan-200 hover:bg-cyan-500/10 border border-transparent'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('Journal');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-[12px] font-bold uppercase tracking-widest text-primary border border-primary/25 bg-primary/10"
+                >
+                  Begin Journey
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </nav>
   );

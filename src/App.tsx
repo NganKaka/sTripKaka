@@ -131,6 +131,7 @@ export default function App() {
     switch(tab) {
       case 'Dashboard': navigate('/'); break;
       case 'Journal': navigate('/archives'); break;
+      case 'Gallery': navigate(`/gallery/${locationId}`); break;
       case 'Stats': navigate('/stats'); break;
       case 'Admin': navigate('/admin'); break;
       default: navigate('/');

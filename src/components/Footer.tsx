@@ -104,7 +104,6 @@ const Footer = memo(function Footer() {
               </motion.div>
             )}
           </AnimatePresence>
-          <p className="mt-3 text-[10px] font-tech uppercase tracking-[0.2em] text-secondary/55">Vietcombank & Momo QR are available inside this support section</p>
         </div>
       </div>
     </footer>
