@@ -214,7 +214,7 @@
   resolved "https://registry.npmjs.org/@mapbox/point-geometry/-/point-geometry-1.1.0.tgz"
   integrity sha512-YGcBz1cg4ATXDCM/71L9xveh4dynfGmcLDqufR+nQQy3fKwsAZsWd/x4621/6uJaeB9mwOHE6hPeDgXz9uViUQ==
 
-"@mapbox/tiny-sdf@^2.0.7":
+"@mapbox/tiny-sdf@^2.1.0":
   version "2.1.0"
   resolved "https://registry.npmjs.org/@mapbox/tiny-sdf/-/tiny-sdf-2.1.0.tgz"
   integrity sha512-uFJhNh36BR4OCuWIEiWaEix9CA2WzT6CAIcqVjWYpnx8+QDtS+oC4QehRrx5cX4mgWs37MmKnwUejeHxVymzNg==
@@ -298,50 +298,50 @@
   resolved "https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.60.2.tgz"
   integrity sha512-Nd/SgG27WoA9e+/TdK74KnHz852TLa94ovOYySo/yMPuTmpckK/jIF2jSwS3g7ELSKXK13/cVdmg1Z/DaCWKxA==
 
-"@tailwindcss/node@4.2.3":
-  version "4.2.3"
-  resolved "https://registry.npmjs.org/@tailwindcss/node/-/node-4.2.3.tgz"
-  integrity sha512-dhXFXkW2dGvX4r/fi24gyXM0t1mFMrpykQjqrdA4SuavaMagm4SY1u5G2SCJwu1/0x/5RlZJ2VPjP3mKYQfCkA==
+"@tailwindcss/node@4.3.0":
+  version "4.3.0"
+  resolved "https://registry.npmjs.org/@tailwindcss/node/-/node-4.3.0.tgz"
+  integrity sha512-aFb4gUhFOgdh9AXo4IzBEOzBkkAxm9VigwDJnMIYv3lcfXCJVesNfbEaBl4BNgVRyid92AmdviqwBUBRKSeY3g==
   dependencies:
     "@jridgewell/remapping" "^2.3.5"
-    enhanced-resolve "^5.19.0"
+    enhanced-resolve "^5.21.0"
     jiti "^2.6.1"
     lightningcss "1.32.0"
     magic-string "^0.30.21"
     source-map-js "^1.2.1"
-    tailwindcss "4.2.3"
+    tailwindcss "4.3.0"
 
-"@tailwindcss/oxide-win32-x64-msvc@4.2.3":
-  version "4.2.3"
-  resolved "https://registry.npmjs.org/@tailwindcss/oxide-win32-x64-msvc/-/oxide-win32-x64-msvc-4.2.3.tgz"
-  integrity sha512-dTRIlLRC5lCRHqO5DLb+A18HCvS394axmzqfnRNLptKVw7WuckpUwo1Z87Yw74mesbeIhnQTA2SZbRcIfVlwxg==
+"@tailwindcss/oxide-win32-x64-msvc@4.3.0":
+  version "4.3.0"
+  resolved "https://registry.npmjs.org/@tailwindcss/oxide-win32-x64-msvc/-/oxide-win32-x64-msvc-4.3.0.tgz"
+  integrity sha512-Mvrf2kXW/yeW/OTezZlCGOirXRcUuLIBx/5Y12BaPM7wJoryG6dfS/NJL8aBPqtTEx/Vm4T4vKzFUcKDT+TKUA==
 
-"@tailwindcss/oxide@4.2.3":
-  version "4.2.3"
-  resolved "https://registry.npmjs.org/@tailwindcss/oxide/-/oxide-4.2.3.tgz"
-  integrity sha512-YyhwSBcxHLS3CU2Mk3dXDuVm8/Ia0+XvfpT8s9YQoICppkUeoobB3hgyGMYbyQ4vn6VgWH9bdv5UnzhTz2NPTQ==
+"@tailwindcss/oxide@4.3.0":
+  version "4.3.0"
+  resolved "https://registry.npmjs.org/@tailwindcss/oxide/-/oxide-4.3.0.tgz"
+  integrity sha512-F7HZGBeN9I0/AuuJS5PwcD8xayx5ri5GhjYUDBEVYUkexyA/giwbDNjRVrxSezE3T250OU2K/wp/ltWx3UOefg==
   optionalDependencies:
-    "@tailwindcss/oxide-android-arm64" "4.2.3"
-    "@tailwindcss/oxide-darwin-arm64" "4.2.3"
-    "@tailwindcss/oxide-darwin-x64" "4.2.3"
-    "@tailwindcss/oxide-freebsd-x64" "4.2.3"
-    "@tailwindcss/oxide-linux-arm-gnueabihf" "4.2.3"
-    "@tailwindcss/oxide-linux-arm64-gnu" "4.2.3"
-    "@tailwindcss/oxide-linux-arm64-musl" "4.2.3"
-    "@tailwindcss/oxide-linux-x64-gnu" "4.2.3"
-    "@tailwindcss/oxide-linux-x64-musl" "4.2.3"
-    "@tailwindcss/oxide-wasm32-wasi" "4.2.3"
-    "@tailwindcss/oxide-win32-arm64-msvc" "4.2.3"
-    "@tailwindcss/oxide-win32-x64-msvc" "4.2.3"
+    "@tailwindcss/oxide-android-arm64" "4.3.0"
+    "@tailwindcss/oxide-darwin-arm64" "4.3.0"
+    "@tailwindcss/oxide-darwin-x64" "4.3.0"
+    "@tailwindcss/oxide-freebsd-x64" "4.3.0"
+    "@tailwindcss/oxide-linux-arm-gnueabihf" "4.3.0"
+    "@tailwindcss/oxide-linux-arm64-gnu" "4.3.0"
+    "@tailwindcss/oxide-linux-arm64-musl" "4.3.0"
+    "@tailwindcss/oxide-linux-x64-gnu" "4.3.0"
+    "@tailwindcss/oxide-linux-x64-musl" "4.3.0"
+    "@tailwindcss/oxide-wasm32-wasi" "4.3.0"
+    "@tailwindcss/oxide-win32-arm64-msvc" "4.3.0"
+    "@tailwindcss/oxide-win32-x64-msvc" "4.3.0"
 
-"@tailwindcss/vite@^4.1.14":
-  version "4.2.3"
-  resolved "https://registry.npmjs.org/@tailwindcss/vite/-/vite-4.2.3.tgz"
-  integrity sha512-pEvbC/NoOqxvqjy6IgelSakbzwin865CmOxJxmz3CSEbHJ2aF1B2183ALVasN0o6dOGhYfnVJOKKxVoyag+XeA==
+"@tailwindcss/vite@^4.3.0":
+  version "4.3.0"
+  resolved "https://registry.npmjs.org/@tailwindcss/vite/-/vite-4.3.0.tgz"
+  integrity sha512-t6J3OrB5Fc0ExuhohouH0fWUGMYL6PTLhW+E7zIk/pdbnJARZDCwjBznFnkh5ynRnIRSI4YjtTH0t6USjJISrw==
   dependencies:
-    "@tailwindcss/node" "4.2.3"
-    "@tailwindcss/oxide" "4.2.3"
-    tailwindcss "4.2.3"
+    "@tailwindcss/node" "4.3.0"
+    "@tailwindcss/oxide" "4.3.0"
+    tailwindcss "4.3.0"
 
 "@types/babel__core@^7.20.5":
   version "7.20.5"
@@ -426,10 +426,10 @@
   resolved "https://registry.npmjs.org/@types/ms/-/ms-2.1.0.tgz"
   integrity sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==
 
-"@types/node@^18.0.0 || ^20.0.0 || >=22.0.0", "@types/node@^22.14.0":
-  version "22.19.17"
-  resolved "https://registry.npmjs.org/@types/node/-/node-22.19.17.tgz"
-  integrity sha512-wGdMcf+vPYM6jikpS/qhg6WiqSV/OhG+jeeHT/KlVqxYfD40iYJf9/AE1uQxVWFvU7MipKRkRv8NSHiCGgPr8Q==
+"@types/node@^18.0.0 || ^20.0.0 || >=22.0.0", "@types/node@^22.19.19":
+  version "22.19.19"
+  resolved "https://registry.npmjs.org/@types/node/-/node-22.19.19.tgz"
+  integrity sha512-dyh/xO2Fh5bYrfWaaqGrRQQGkNdmYw6AmaAUvYeUMNTWQtvb796ikLdmTchRmOlOiIJ1TDXfWgVx1QkUlQ6Hew==
   dependencies:
     undici-types "~6.21.0"
 
@@ -556,7 +556,7 @@ csstype@^3.2.2:
   resolved "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz"
   integrity sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==
 
-debug@^4.0.0, debug@^4.1.0, debug@^4.1.1, debug@^4.3.1:
+debug@^4.0.0, debug@^4.1.0, debug@^4.3.1:
   version "4.4.3"
   resolved "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz"
   integrity sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==
@@ -597,13 +597,13 @@ electron-to-chromium@^1.5.328:
   resolved "https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.340.tgz"
   integrity sha512-908qahOGocRMinT2nM3ajCEM99H4iPdv84eagPP3FfZy/1ZGeOy2CZYzjhms81ckOPCXPlW7LkY4XpxD8r1DrA==
 
-enhanced-resolve@^5.19.0:
-  version "5.20.1"
-  resolved "https://registry.npmjs.org/enhanced-resolve/-/enhanced-resolve-5.20.1.tgz"
-  integrity sha512-Qohcme7V1inbAfvjItgw0EaxVX5q2rdVEZHRBrEQdRZTssLDGsL8Lwrznl8oQ/6kuTJONLaDcGjkNP247XEhcA==
+enhanced-resolve@^5.21.0:
+  version "5.21.3"
+  resolved "https://registry.npmjs.org/enhanced-resolve/-/enhanced-resolve-5.21.3.tgz"
+  integrity sha512-QyL119InA+XXEkNLNTPCXPugSvOfhwv0JOlGNzvxs0hZaiHLNvXSpudUWsOlsXGWJh8G6ckCScEkVHfX3kw/2Q==
   dependencies:
     graceful-fs "^4.2.4"
-    tapable "^2.3.0"
+    tapable "^2.3.3"
 
 esbuild@^0.25.0:
   version "0.25.12"
@@ -763,13 +763,6 @@ html-url-attributes@^3.0.0:
   resolved "https://registry.npmjs.org/html-url-attributes/-/html-url-attributes-3.0.1.tgz"
   integrity sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ==
 
-httpx@^3.0.1:
-  version "3.0.1"
-  resolved "https://registry.npmjs.org/httpx/-/httpx-3.0.1.tgz"
-  integrity sha512-ILTmufYaGAH2Def/wQ++6mz41xDghoRFd3b49uSkVMIRUKm2nHTvPPaVGtNN5hoTu9E3bJ8Jg+8TRkx+PiN6sg==
-  dependencies:
-    debug "^4.1.1"
-
 inline-style-parser@0.2.7:
   version "0.2.7"
   resolved "https://registry.npmjs.org/inline-style-parser/-/inline-style-parser-0.2.7.tgz"
@@ -881,14 +874,14 @@ magic-string@^0.30.21:
   dependencies:
     "@jridgewell/sourcemap-codec" "^1.5.5"
 
-maplibre-gl@^5.23.0:
-  version "5.23.0"
-  resolved "https://registry.npmjs.org/maplibre-gl/-/maplibre-gl-5.23.0.tgz"
-  integrity sha512-aou8YBNFS8uVtDWFWt0W/6oorfl18wt+oIA8fnXk1kivjkbtXi9gGrQvflTpwrR3hG13aWdIdbYWeN0NFMV7ag==
+maplibre-gl@^5.24.0:
+  version "5.24.0"
+  resolved "https://registry.npmjs.org/maplibre-gl/-/maplibre-gl-5.24.0.tgz"
+  integrity sha512-ALyFxgtd5R+65UqZ/++lOqwWcC0SNho9c27fYSyLmG7AfnAul2o46F05aDJGPbFU57wos9dgcIySHs0Xe6ia3A==
   dependencies:
     "@mapbox/jsonlint-lines-primitives" "^2.0.2"
     "@mapbox/point-geometry" "^1.1.0"
-    "@mapbox/tiny-sdf" "^2.0.7"
+    "@mapbox/tiny-sdf" "^2.1.0"
     "@mapbox/unitbezier" "^0.0.1"
     "@mapbox/vector-tile" "^2.0.4"
     "@mapbox/whoots-js" "^3.1.0"
@@ -1473,10 +1466,10 @@ quickselect@^3.0.0:
   resolved "https://registry.npmjs.org/quickselect/-/quickselect-3.0.0.tgz"
   integrity sha512-XdjUArbK4Bm5fLLvlm5KpTFOiOThgfWWI4axAZDWg4E/0mKdZyI9tNEfds27qCi1ze/vwTR16kvmmGhRra3c2g==
 
-"react-dom@^18.0.0 || ^19.0.0", react-dom@^19.0.0, react-dom@>=18:
-  version "19.2.5"
-  resolved "https://registry.npmjs.org/react-dom/-/react-dom-19.2.5.tgz"
-  integrity sha512-J5bAZz+DXMMwW/wV3xzKke59Af6CHY7G4uYLN1OvBcKEsWOs4pQExj86BBKamxl/Ik5bx9whOrvBlSDfWzgSag==
+"react-dom@^18.0.0 || ^19.0.0", react-dom@^19.2.6, react-dom@>=18:
+  version "19.2.6"
+  resolved "https://registry.npmjs.org/react-dom/-/react-dom-19.2.6.tgz"
+  integrity sha512-0prMI+hvBbPjsWnxDLxlCGyM8PN6UuWjEUCYmZhO67xIV9Xasa/r/vDnq+Xyq4Lo27g8QSbO5YzARu0D1Sps3g==
   dependencies:
     scheduler "^0.27.0"
 
@@ -1502,25 +1495,25 @@ react-refresh@^0.18.0:
   resolved "https://registry.npmjs.org/react-refresh/-/react-refresh-0.18.0.tgz"
   integrity sha512-QgT5//D3jfjJb6Gsjxv0Slpj23ip+HtOpnNgnb2S5zU3CB26G/IDPGoy4RJB42wzFE46DRsstbW6tKHoKbhAxw==
 
-react-router-dom@^7.14.1:
-  version "7.14.1"
-  resolved "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.14.1.tgz"
-  integrity sha512-ZkrQuwwhGibjQLqH1eCdyiZyLWglPxzxdl5tgwgKEyCSGC76vmAjleGocRe3J/MLfzMUIKwaFJWpFVJhK3d2xA==
+react-router-dom@^7.15.0:
+  version "7.15.0"
+  resolved "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.15.0.tgz"
+  integrity sha512-VcrVg64Fo8nwBvDscajG8gRTLIuTC6N50nb22l2HOOV4PTOHgoGp8mUjy9wLiHYoYTSYI36tUnXZgasSRFZorQ==
   dependencies:
-    react-router "7.14.1"
+    react-router "7.15.0"
 
-react-router@7.14.1:
-  version "7.14.1"
-  resolved "https://registry.npmjs.org/react-router/-/react-router-7.14.1.tgz"
-  integrity sha512-5BCvFskyAAVumqhEKh/iPhLOIkfxcEUz8WqFIARCkMg8hZZzDYX9CtwxXA0e+qT8zAxmMC0x3Ckb9iMONwc5jg==
+react-router@7.15.0:
+  version "7.15.0"
+  resolved "https://registry.npmjs.org/react-router/-/react-router-7.15.0.tgz"
+  integrity sha512-HW9vYwuM8f4yx66Izy8xfrzCM+SBJluoZcCbww9A1TySax11S5Vgw6fi3ZjMONw9J4gQwngL7PzkyIpJJpJ7RQ==
   dependencies:
     cookie "^1.0.1"
     set-cookie-parser "^2.6.0"
 
-"react@^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react@^18.0.0 || ^19.0.0", react@^19.0.0, react@^19.2.5, react@>=18:
-  version "19.2.5"
-  resolved "https://registry.npmjs.org/react/-/react-19.2.5.tgz"
-  integrity sha512-llUJLzz1zTUBrskt2pwZgLq59AemifIftw4aB7JxOqf1HY2FDaGDxgwpAPVzHU1kdWabH7FauP4i1oEeer2WCA==
+"react@^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react@^18.0.0 || ^19.0.0", react@^19.2.6, react@>=18:
+  version "19.2.6"
+  resolved "https://registry.npmjs.org/react/-/react-19.2.6.tgz"
+  integrity sha512-sfWGGfavi0xr8Pg0sVsyHMAOziVYKgPLNrS7ig+ivMNb3wbCBw3KxtflsGBAwD3gYQlE/AEZsTLgToRrSCjb0Q==
 
 remark-gfm@^4.0.1:
   version "4.0.1"
@@ -1669,15 +1662,15 @@ supercluster@^8.0.1:
   dependencies:
     kdbush "^4.0.2"
 
-tailwindcss@^4.1.14, tailwindcss@4.2.3:
-  version "4.2.3"
-  resolved "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.2.3.tgz"
-  integrity sha512-fA/NX5gMf0ooCLISgB0wScaWgaj6rjTN2SVAwleURjiya7ITNkV+VMmoHtKkldP6CIZoYCZyxb8zP/e2TWoEtQ==
+tailwindcss@^4.3.0, tailwindcss@4.3.0:
+  version "4.3.0"
+  resolved "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.3.0.tgz"
+  integrity sha512-y6nxMGB1nMW9R6k96e5gdIFzcfL/gTJRNaqGes1YvkLnPVXzWgbqFF2yLC0T8G774n24cx3Pe8XrKoniCOAH+Q==
 
-tapable@^2.3.0:
-  version "2.3.2"
-  resolved "https://registry.npmjs.org/tapable/-/tapable-2.3.2.tgz"
-  integrity sha512-1MOpMXuhGzGL5TTCZFItxCc0AARf1EZFQkGqMm7ERKj8+Hgr5oLvJOVFcC+lRmR8hCe2S3jC4T5D7Vg/d7/fhA==
+tapable@^2.3.3:
+  version "2.3.3"
+  resolved "https://registry.npmjs.org/tapable/-/tapable-2.3.3.tgz"
+  integrity sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==
 
 tinyglobby@^0.2.13:
   version "0.2.16"
