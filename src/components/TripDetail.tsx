@@ -1,11 +1,13 @@
 import { motion, useScroll, useSpring, useInView } from 'framer-motion';
 import { MapPin, Sun, Camera, ArrowRight, Quote, ArrowLeft } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
+import { countImagesFromData, flattenNodeImages, normalizeFeaturedImages } from '../lib/gallery';
 import { useMusic } from '../contexts/MusicContext';
 import FadeInImage from '../lib/FadeInImage';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Seo, { SITE_URL } from './Seo';
 
 interface TripDetailProps {
   setActiveTab: (tab: string) => void;
@@ -100,14 +102,6 @@ const markdownComponents = {
 const getProvince = (id: string, name: string) => PROVINCE_BY_LOCATION[id] || name;
 const getRegion = (province: string) => REGION_BY_PROVINCE[province] || 'Unknown';
 
-const countImagesFromData = (galleryNodes: any[] = [], galleryImages: string[] = []) => {
-  const fromNodes = Array.isArray(galleryNodes)
-    ? galleryNodes.flatMap((node: any) => (Array.isArray(node.images) ? node.images.filter(Boolean) : []))
-    : [];
-  if (fromNodes.length) return fromNodes.length;
-  return Array.isArray(galleryImages) ? galleryImages.filter(Boolean).length : 0;
-};
-
 const FALLBACK_BY_LOCATION: Record<string, LocationApiResponse> = {
   phu_quoc: {
     id: 'phu_quoc',
@@ -155,14 +149,12 @@ const FALLBACK_BY_LOCATION: Record<string, LocationApiResponse> = {
 const getFallbackLocation = (locationId: string): LocationApiResponse => FALLBACK_BY_LOCATION[locationId] || FALLBACK_BY_LOCATION.phu_quoc;
 
 const buildTripState = (locationId: string, data: LocationApiResponse): TripState => {
-  const galleryFromNodes = Array.isArray(data.gallery_nodes)
-    ? data.gallery_nodes.flatMap((node: any) => (Array.isArray(node.images) ? node.images.filter(Boolean) : []))
-    : [];
+  const galleryFromNodes = Array.isArray(data.gallery_nodes) ? flattenNodeImages(data.gallery_nodes) : [];
 
   const gallery = galleryFromNodes.length ? galleryFromNodes : (data.gallery_images || []);
 
   const featuredFromApi = Array.isArray(data.featured_images)
-    ? [data.featured_images[0] || '', data.featured_images[1] || '', data.featured_images[2] || ''].filter(Boolean)
+    ? normalizeFeaturedImages(data.featured_images).filter(Boolean)
     : [];
   const fallbackFeatured = [data.hero_poster || '', ...gallery].filter(Boolean);
   const featured = (featuredFromApi.length ? featuredFromApi : fallbackFeatured).slice(0, 3);
@@ -225,6 +217,9 @@ function FloatingImage({ src, alt, delay = 0, className = '' }: { src: string; a
         alt={alt}
         loading="lazy"
         decoding="async"
+        width={800}
+        srcSetWidths={[400, 800, 1200]}
+        sizes="(min-width: 768px) 33vw, 50vw"
         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
       />
     </motion.div>
@@ -274,8 +269,31 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
   const featuredImgs = (tripData.featured || tripData.gallery || []).slice(0, 3);
   const [heroImg, img2, img3] = featuredImgs;
 
+  const tripJsonLd = useMemo(() => {
+    const province = PROVINCE_BY_LOCATION[locationId];
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'Place',
+      name: tripData.title,
+      description: tripData.subtitle || tripData.desc1,
+      url: `${SITE_URL}/mission-detail/${locationId}`,
+      image: heroImg || tripData.poster || undefined,
+      ...(province
+        ? { address: { '@type': 'PostalAddress', addressRegion: province, addressCountry: 'VN' } }
+        : {}),
+    };
+  }, [locationId, tripData, heroImg]);
+
   return (
     <>
+      <Seo
+        title={`${tripData.title} — Ngan's Trip`}
+        description={tripData.subtitle || tripData.desc1 || `A travel chapter from ${tripData.title}.`}
+        path={`/mission-detail/${locationId}`}
+        image={heroImg || undefined}
+        type="article"
+        jsonLd={tripJsonLd}
+      />
       <motion.div
         className="fixed top-0 left-0 right-0 h-1 bg-primary z-50 origin-left shadow-[0_0_15px_rgba(233,195,73,1)]"
         style={{ scaleX }}
@@ -319,6 +337,9 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
                   loading="eager"
                   fetchPriority="high"
                   decoding="async"
+                  width={1600}
+                  srcSetWidths={[800, 1200, 1600, 2000]}
+                  sizes="100vw"
                   className="w-full h-full object-cover opacity-80"
                 />
               </motion.div>
@@ -403,6 +424,9 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
                       alt={`${tripData.title} - main`}
                       loading="lazy"
                       decoding="async"
+                      width={1200}
+                      srcSetWidths={[600, 1200, 1600]}
+                      sizes="(min-width: 768px) 66vw, 100vw"
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent opacity-60" />

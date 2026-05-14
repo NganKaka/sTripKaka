@@ -2,6 +2,8 @@ import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { Globe, Image as ImageIcon, MapPin } from 'lucide-react';
 import { apiUrl } from '../lib/api';
+import { cldUrl, cldSrcSet } from '../lib/cloudinary';
+import Seo, { SITE_URL } from './Seo';
 
 const InteractiveMap = lazy(() => import('./InteractiveMap'));
 
@@ -296,6 +298,19 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
 
   return (
     <div className="space-y-24">
+      <Seo
+        title="Ngan's Trip — Travel Journal"
+        description="A travel journal and gallery documenting destinations, stories, and media across every trip chapter."
+        path="/"
+        type="website"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: "Ngan's Trip",
+          url: SITE_URL,
+          description: 'Travel journal documenting destinations, stories, and media across every trip chapter.',
+        }}
+      />
       {/* Hero */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center min-h-[500px]">
         <div className="space-y-6">
@@ -371,7 +386,15 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
               transition={{ duration: 8, ease: "easeInOut", repeat: Infinity }}
               className="w-56 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
             >
-              <img src="/landing_img_1.jpg" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
+              <img
+                src="/landing_img_1.jpg"
+                alt=""
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
             </motion.div>
           </motion.div>
 
@@ -494,10 +517,14 @@ Một sự tái hiện trực quan về những hành trình đã qua. Mỗi đi
                   DAT_LNG: {c.lng || "000.0000"}° E
                 </div>
 
-                <img 
-                  src={c.img} 
-                  alt={c.name} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[2s] ease-out" 
+                <img
+                  src={cldUrl(c.img, { width: 800 })}
+                  srcSet={cldSrcSet(c.img, [400, 800, 1200])}
+                  sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  alt={c.name}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[2s] ease-out"
                   referrerPolicy="no-referrer"
                 />
                 <div className="absolute bottom-4 left-4 bg-primary/20 backdrop-blur-md px-3 py-1 rounded-md border border-primary/30 text-[10px] text-primary font-bold tracking-widest uppercase">

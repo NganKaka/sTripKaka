@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ChevronDown, Star, ArrowRight, Loader2 } from 'lucide-react';
 import { MagneticCard } from './Dashboard';
 import { apiUrl } from '../lib/api';
+import { cldUrl, cldSrcSet } from '../lib/cloudinary';
+import Seo from './Seo';
 
 const ARCHIVE_FILTERS = ['ALL', 'CHAPTER I', 'CHAPTER II', 'CHAPTER III'];
 const ARCHIVE_PAGE_SIZE = 6;
@@ -144,6 +146,11 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
 
   return (
     <div className="space-y-12">
+      <Seo
+        title="The Archives — Ngan's Trip"
+        description="A curated collection of past expeditions, sorted by chapter and searchable by destination."
+        path="/archives"
+      />
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
           <h1 className="font-headline text-4xl md:text-6xl font-extrabold tracking-tight text-on-surface">The Archives</h1>
@@ -256,10 +263,14 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
                         PROCESSED // {e.id.toUpperCase()}
                       </div>
 
-                      <img 
-                        src={e.img} 
-                        alt={e.name} 
-                        className="w-full h-full object-cover group-hover:scale-110 group-hover:glitch-img transition-transform duration-1000" 
+                      <img
+                        src={cldUrl(e.img, { width: 800 })}
+                        srcSet={cldSrcSet(e.img, [400, 800, 1200])}
+                        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                        alt={e.name}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover group-hover:scale-110 group-hover:glitch-img transition-transform duration-1000"
                         referrerPolicy="no-referrer"
                         onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?auto=format&fit=crop&q=80&w=800'; }}
                       />
