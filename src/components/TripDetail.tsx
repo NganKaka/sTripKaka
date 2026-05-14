@@ -2,11 +2,11 @@ import { motion, useScroll, useSpring, useInView } from 'framer-motion';
 import { MapPin, Sun, Camera, ArrowRight, Quote, ArrowLeft } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
+import { cachedFetchJson } from '../lib/apiCache';
 import { countImagesFromData, flattenNodeImages, normalizeFeaturedImages } from '../lib/gallery';
 import { useMusic } from '../contexts/MusicContext';
 import FadeInImage from '../lib/FadeInImage';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import LazyMarkdown from './LazyMarkdown';
 import Seo, { SITE_URL } from './Seo';
 
 interface TripDetailProps {
@@ -236,9 +236,8 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
     pushRecentView(locationId);
     trackLocationView(locationId, 'mission_detail');
 
-    fetch(apiUrl(`/locations/${locationId}`))
-      .then(res => { if (!res.ok) throw new Error('Not found'); return res.json(); })
-      .then((data: LocationApiResponse) => {
+    cachedFetchJson<LocationApiResponse>(apiUrl(`/locations/${locationId}`))
+      .then((data) => {
         setTripData(buildTripState(locationId, data));
         activateMusic(locationId, data.music_url);
         setLoading(false);
@@ -384,9 +383,9 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
                 <h2 className="font-headline text-3xl md:text-4xl font-bold tracking-tight text-on-surface">{tripData.storyTitle}</h2>
               </div>
               <div className="prose prose-invert max-w-none first-letter:[all:unset]">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                <LazyMarkdown components={markdownComponents}>
                   {tripData.desc1}
-                </ReactMarkdown>
+                </LazyMarkdown>
               </div>
               {tripData.desc2 && (
                 <p className="text-secondary/80 font-body">{tripData.desc2}</p>

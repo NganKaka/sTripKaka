@@ -2,7 +2,9 @@ import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { Globe, Image as ImageIcon, MapPin } from 'lucide-react';
 import { apiUrl } from '../lib/api';
+import { cachedFetchJson } from '../lib/apiCache';
 import { cldUrl, cldSrcSet } from '../lib/cloudinary';
+import { prefetchTripDetail } from '../lib/prefetch';
 import Seo, { SITE_URL } from './Seo';
 
 const InteractiveMap = lazy(() => import('./InteractiveMap'));
@@ -177,7 +179,7 @@ function Typewriter({ words }: { words: string[] }) {
   );
 }
 
-export function MagneticCard({ children, onClick, className, attractOnProximity = false }: any) {
+export function MagneticCard({ children, onClick, onMouseEnter, onFocus, className, attractOnProximity = false }: any) {
   const ref = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -202,6 +204,10 @@ export function MagneticCard({ children, onClick, className, attractOnProximity 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     setFromPointer(e.clientX, e.clientY, rect);
+  };
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+    onMouseEnter?.(e);
   };
 
   const handleMouseLeave = () => {
@@ -239,7 +245,9 @@ export function MagneticCard({ children, onClick, className, attractOnProximity 
     <motion.div
       ref={ref}
       onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onFocus={onFocus}
       style={{ rotateY, rotateX, x: translateX, y: translateY, transformStyle: "preserve-3d" }}
       onClick={onClick}
       className={className}
@@ -267,12 +275,8 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
   const loadChapters = () => {
     setIsLoadingChapters(true);
     setChapterLoadError(false);
-    fetch(apiUrl('/locations'))
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch chapters');
-        return res.json();
-      })
-      .then((data: DbLocation[]) => {
+    cachedFetchJson<DbLocation[]>(apiUrl('/locations'))
+      .then((data) => {
         setDbChapters(Array.isArray(data) && data.length > 0 ? data : []);
       })
       .catch(err => {
@@ -503,6 +507,8 @@ Một sự tái hiện trực quan về những hành trình đã qua. Mỗi đi
             <motion.div
               key={`${c.id}-${i}`}
               onClick={() => navigate(`/mission-detail/${c.id}`)}
+              onMouseEnter={() => prefetchTripDetail(c.id)}
+              onFocus={() => prefetchTripDetail(c.id)}
               whileHover={{ y: -4 }}
               whileTap={{ scale: 0.99 }}
               className="group relative rounded-2xl overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/[0.08] hover:border-primary/40 hover:shadow-[0_0_50px_rgba(233,195,73,0.15)] transition-all duration-500 cursor-pointer h-full"

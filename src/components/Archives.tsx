@@ -4,6 +4,7 @@ import { Search, ChevronDown, Star, ArrowRight, Loader2 } from 'lucide-react';
 import { MagneticCard } from './Dashboard';
 import { apiUrl } from '../lib/api';
 import { cldUrl, cldSrcSet } from '../lib/cloudinary';
+import { prefetchTripDetail } from '../lib/prefetch';
 import Seo from './Seo';
 
 const ARCHIVE_FILTERS = ['ALL', 'CHAPTER I', 'CHAPTER II', 'CHAPTER III'];
@@ -244,6 +245,8 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
               >
                 <MagneticCard
                   onClick={() => setActiveTab(`Destinations:${e.id}`)}
+                  onMouseEnter={() => prefetchTripDetail(e.id)}
+                  onFocus={() => prefetchTripDetail(e.id)}
                   attractOnProximity
                   className="glass-card rounded-xl overflow-hidden group flex flex-col transition-colors hover:shadow-[0_0_20px_rgba(34,211,238,0.15)] relative cursor-pointer"
                 >

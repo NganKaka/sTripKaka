@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import mapboxgl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { apiUrl } from '../lib/api';
+import { cachedFetchJson } from '../lib/apiCache';
 
 type HighlightType = 'primary' | 'secondary' | 'highlight';
 
@@ -217,9 +218,8 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
   }, []);
 
   useEffect(() => {
-    fetch(apiUrl('/locations'))
-      .then(res => res.json())
-      .then((data: DbLocation[]) => {
+    cachedFetchJson<DbLocation[]>(apiUrl('/locations'))
+      .then((data) => {
         const mapped = Array.isArray(data)
           ? data
               .slice()

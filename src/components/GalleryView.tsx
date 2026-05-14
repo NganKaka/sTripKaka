@@ -3,6 +3,7 @@ import { Mountain, ArrowLeft, Star, Download, Play, Pause, ChevronUp, ChevronDow
 import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
+import { cachedFetchJson } from '../lib/apiCache';
 import { type GalleryNode, nodesFromLegacyImages, normalizeNode } from '../lib/gallery';
 import { useMusic } from '../contexts/MusicContext';
 import FadeInImage from '../lib/FadeInImage';
@@ -419,9 +420,8 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
     pushRecentView(locationId);
     trackLocationView(locationId, 'gallery');
 
-    fetch(apiUrl(`/locations/${locationId}`))
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then((data: LocationResponse) => {
+    cachedFetchJson<LocationResponse>(apiUrl(`/locations/${locationId}`))
+      .then((data) => {
         const backendNodes: GalleryNode[] = Array.isArray(data.gallery_nodes) && data.gallery_nodes.length
           ? data.gallery_nodes.map(node => normalizeNode(node))
           : nodesFromLegacyImages(data.gallery_images || []);

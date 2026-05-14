@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import LazyMarkdown from './LazyMarkdown';
 import {
   Plus, Trash2, Edit3, Save, X, Image, MapPin, ChevronDown, ChevronLeft, ChevronRight,
   Check, AlertCircle, Loader2, Globe, FileText, Film, Star, Calendar, Music,
   Archive, RotateCcw, Bold, Italic, Heading1, Heading2, List, ListOrdered, Link2, Quote, RefreshCcw
 } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
+import { createDefaultNodes, type GalleryNode, flattenNodeImages, nodesFromLegacyImages, normalizeFeaturedImages, normalizeNode } from '../lib/gallery';
 
 const API = API_BASE_URL;
 
@@ -106,14 +106,6 @@ const HIGHLIGHT_TYPES = [
 const GALLERY_TAG_SUGGESTIONS = ['sunset', 'food', 'adventure', 'chill', 'couple', 'family'];
 const MAX_TAGS_PER_IMAGE = 8;
 
-type GalleryNode = {
-  uid: string;
-  title: string;
-  description: string;
-  images: [string, string, string];
-  image_tags: [string[], string[], string[]];
-};
-
 type Location = {
   id: string;
   name: string;
@@ -174,16 +166,8 @@ type StoryMode = 'edit' | 'preview';
 type MarkdownFormat = 'bold' | 'italic' | 'h1' | 'h2' | 'quote' | 'ul' | 'ol' | 'link';
 
 const createNodeUid = () => `node_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
-
-const createEmptyNode = (): GalleryNode => ({
-  uid: createNodeUid(),
-  title: '',
-  description: '',
-  images: ['', '', ''],
-  image_tags: [[], [], []],
-});
-
-const createDefaultNodes = (): GalleryNode[] => [createEmptyNode(), createEmptyNode(), createEmptyNode()];
+const createAdminDefaultNodes = () => createDefaultNodes(createNodeUid) as Array<GalleryNode & { uid: string }>;
+const createAdminEmptyNode = () => createDefaultNodes(createNodeUid)[0] as GalleryNode & { uid: string };
 
 const EMPTY_FORM: Location = {
   id: '',
@@ -201,7 +185,7 @@ const EMPTY_FORM: Location = {
   featured_images: ['', '', ''],
   full_description: '',
   gallery_images: [],
-  gallery_nodes: createDefaultNodes(),
+  gallery_nodes: createAdminDefaultNodes(),
   is_archived: false,
   archived_at: '',
 };
@@ -221,47 +205,6 @@ function swapItems<T>(items: T[], from: number, to: number): T[] {
   const next = [...items];
   [next[from], next[to]] = [next[to], next[from]];
   return next;
-}
-
-function normalizeNode(node: any): GalleryNode {
-  const normalizeTags = (tags: any): [string[], string[], string[]] => {
-    const normalized = [0, 1, 2].map(index => {
-      const current = tags?.[index];
-      if (!Array.isArray(current)) return [];
-      return current
-        .filter((tag: unknown): tag is string => typeof tag === 'string')
-        .map(tag => tag.trim())
-        .filter(Boolean);
-    });
-    return normalized as [string[], string[], string[]];
-  };
-
-  return {
-    uid: node?.uid || createNodeUid(),
-    title: node?.title || '',
-    description: node?.description || '',
-    images: [node?.images?.[0] || '', node?.images?.[1] || '', node?.images?.[2] || ''],
-    image_tags: normalizeTags(node?.image_tags),
-  };
-}
-
-function nodesFromLegacyImages(images: string[] = []): GalleryNode[] {
-  if (!images.length) return createDefaultNodes();
-  const nodes: GalleryNode[] = [];
-  for (let i = 0; i < images.length; i += 3) {
-    nodes.push({ uid: createNodeUid(), title: `Node ${nodes.length + 1}`, description: '', images: [images[i] || '', images[i + 1] || '', images[i + 2] || ''], image_tags: [[], [], []] });
-  }
-  return nodes;
-}
-
-function flattenNodeImages(nodes: GalleryNode[]): string[] {
-  return nodes.flatMap(node => node.images).filter(Boolean);
-}
-
-function normalizeFeaturedImages(images: [string, string, string]): [string, string, string] {
-  const next = [...images].filter(Boolean);
-  while (next.length < 3) next.push('');
-  return next.slice(0, 3) as [string, string, string];
 }
 
 function applyMarkdownFormat(value: string, selectionStart: number, selectionEnd: number, format: MarkdownFormat) {
@@ -392,8 +335,8 @@ function getImageNoteFilename(src: string) {
 
 function normalizeLocationFromApi(loc: any): Location {
   const galleryNodes = Array.isArray(loc?.gallery_nodes) && loc.gallery_nodes.length
-    ? loc.gallery_nodes.map(normalizeNode)
-    : nodesFromLegacyImages(loc?.gallery_images || []);
+    ? loc.gallery_nodes.map(node => normalizeNode(node, createNodeUid) as GalleryNode & { uid: string })
+    : nodesFromLegacyImages(loc?.gallery_images || [], createNodeUid, true) as Array<GalleryNode & { uid: string }>;
 
   const featured = Array.isArray(loc?.featured_images)
     ? [loc.featured_images[0] || '', loc.featured_images[1] || '', loc.featured_images[2] || '']
@@ -402,7 +345,7 @@ function normalizeLocationFromApi(loc: any): Location {
   return {
     ...EMPTY_FORM,
     ...loc,
-    featured_images: normalizeFeaturedImages(featured as [string, string, string]),
+    featured_images: normalizeFeaturedImages(featured),
     gallery_nodes: galleryNodes,
     gallery_images: loc?.gallery_images || flattenNodeImages(galleryNodes),
     is_archived: Boolean(loc?.is_archived),
@@ -411,7 +354,7 @@ function normalizeLocationFromApi(loc: any): Location {
 }
 
 function buildLocationPayload(form: Location) {
-  const featured = normalizeFeaturedImages(form.featured_images);
+  const featured = normalizeFeaturedImages([...form.featured_images]);
   const galleryNodes = form.gallery_nodes.map(({ title, description, images, image_tags }) => ({ title, description, images, image_tags }));
   const galleryImages = flattenNodeImages(form.gallery_nodes);
 
@@ -708,7 +651,7 @@ function FeaturedImagesInput({ images, onChange }: { images: [string, string, st
               onChange={value => {
                 const next = [...images] as [string, string, string];
                 next[index] = value;
-                onChange(normalizeFeaturedImages(next));
+                onChange(normalizeFeaturedImages([...next]));
               }}
               actionSlot={({ openPicker, clear }) => (
                 <div className="flex items-center justify-between gap-2">
@@ -721,8 +664,8 @@ function FeaturedImagesInput({ images, onChange }: { images: [string, string, st
                     </motion.button>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <motion.button whileTap={{ x: -6, scale: 0.95 }} type="button" onClick={() => onChange(normalizeFeaturedImages(swapItems(images, index, index - 1) as [string, string, string]))} disabled={index === 0} className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-secondary/60 hover:text-primary hover:border-primary/30 hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"><ChevronLeft size={12} /></motion.button>
-                    <motion.button whileTap={{ x: 6, scale: 0.95 }} type="button" onClick={() => onChange(normalizeFeaturedImages(swapItems(images, index, index + 1) as [string, string, string]))} disabled={index === images.length - 1} className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-secondary/60 hover:text-primary hover:border-primary/30 hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"><ChevronRight size={12} /></motion.button>
+                    <motion.button whileTap={{ x: -6, scale: 0.95 }} type="button" onClick={() => onChange(normalizeFeaturedImages([...swapItems(images, index, index - 1)]))} disabled={index === 0} className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-secondary/60 hover:text-primary hover:border-primary/30 hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"><ChevronLeft size={12} /></motion.button>
+                    <motion.button whileTap={{ x: 6, scale: 0.95 }} type="button" onClick={() => onChange(normalizeFeaturedImages([...swapItems(images, index, index + 1)]))} disabled={index === images.length - 1} className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-secondary/60 hover:text-primary hover:border-primary/30 hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"><ChevronRight size={12} /></motion.button>
                   </div>
                 </div>
               )}
@@ -808,7 +751,7 @@ function StoryMarkdownEditor({ value, onChange }: { value: string; onChange: (va
       ) : (
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 min-h-[220px] prose prose-invert max-w-none">
           {value ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{value}</ReactMarkdown>
+            <LazyMarkdown components={markdownComponents}>{value}</LazyMarkdown>
           ) : (
             <p className="text-secondary/40 text-sm">Markdown preview will appear here.</p>
           )}
@@ -876,7 +819,7 @@ function GalleryNodesInput({ nodes, onChange }: { nodes: GalleryNode[]; onChange
     }));
   };
 
-  const addNode = () => onChange(currentNodes => [...currentNodes, createEmptyNode()]);
+  const addNode = () => onChange(currentNodes => [...currentNodes, createAdminEmptyNode()]);
   const deleteNode = (index: number) => onChange(currentNodes => currentNodes.filter((_, i) => i !== index));
   const moveNode = (index: number, direction: -1 | 1) => {
     onChange(currentNodes => swapItems(currentNodes, index, index + direction));
@@ -1075,11 +1018,10 @@ function ArchiveConfirmModal({
   );
 }
 
-
 export default function AdminPanel() {
   const navigate = useNavigate();
   const [locations, setLocations] = useState<Location[]>([]);
-  const [form, setForm] = useState<Location>({ ...EMPTY_FORM, gallery_nodes: createDefaultNodes() });
+  const [form, setForm] = useState<Location>({ ...EMPTY_FORM, gallery_nodes: createAdminDefaultNodes() });
   const [editing, setEditing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -1102,9 +1044,10 @@ export default function AdminPanel() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const fetchLocations = async () => {
+  const fetchLocations = useCallback(async () => {
     try {
       const res = await fetch(`${API}/locations?include_archived=true`);
+      if (!res.ok) throw new Error();
       const data = await res.json();
       setLocations(Array.isArray(data) ? data.map(normalizeLocationFromApi) : []);
     } catch {
@@ -1112,9 +1055,222 @@ export default function AdminPanel() {
     } finally {
       setFetching(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setFetching(false);
+      setLocations([]);
+      setSelectedLocationForReviews(null);
+      setReviewsByLocation({});
+      setImageNotesByLocation({});
+      return;
+    }
+    setFetching(true);
+    fetchLocations();
+  }, [fetchLocations, isLoggedIn]);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === 'vohoangngan85' && password === 'vohoangngan85') {
+      setIsLoggedIn(true);
+      setLoginError('');
+      setFetching(true);
+      showToast('Login successful', 'success');
+    } else {
+      setLoginError('Invalid credentials');
+    }
   };
 
-  useEffect(() => { fetchLocations(); }, []);
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUsername('');
+    setPassword('');
+    setLoginError('');
+  };
+
+  useEffect(() => {
+    if (selectedLocationForReviews) {
+      fetchReviewsForLocation(selectedLocationForReviews);
+      fetchImageNotesForLocation(selectedLocationForReviews);
+    }
+  }, [selectedLocationForReviews, locations]);
+
+  const handleSelectLocationForReviews = (locationId: string) => {
+    setSelectedLocationForReviews(locationId);
+  };
+
+  const handleDeleteReview = async (locationId: string, reviewId: number) => {
+    if (!window.confirm('Delete this comment?')) return;
+    try {
+      const res = await fetch(`${API}/locations/${locationId}/reviews/${reviewId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      const data: ReviewsResponse = await res.json();
+      setReviewsByLocation(prev => ({ ...prev, [locationId]: Array.isArray(data.reviews) ? data.reviews : [] }));
+      showToast('Comment deleted.', 'success');
+    } catch {
+      showToast('Delete comment failed.', 'error');
+    }
+  };
+
+  const handleDeleteImageNote = async (locationId: string, noteId: number) => {
+    if (!window.confirm('Delete this image note?')) return;
+    try {
+      const res = await fetch(`${API}/locations/${locationId}/image-notes/${noteId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      const data: ImageNotesResponse = await res.json();
+      setImageNotesByLocation(prev => {
+        const currentNotes = prev[locationId] || [];
+        const refreshedNotes = currentNotes.filter(note => note.id !== noteId);
+        if (Array.isArray(data.notes) && data.notes.length > 0) {
+          return { ...prev, [locationId]: [...refreshedNotes.filter(n => n.image_src !== data.notes[0].image_src), ...data.notes] };
+        }
+        return { ...prev, [locationId]: refreshedNotes };
+      });
+      showToast('Image note deleted.', 'success');
+    } catch {
+      showToast('Delete image note failed.', 'error');
+    }
+  };
+
+  const handleDeleteAllReviewsForLocation = async (locationId: string) => {
+    if (!window.confirm('Delete all comments for this location?')) return;
+    try {
+      const res = await fetch(`${API}/locations/${locationId}/reviews`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      const data: ReviewsResponse = await res.json();
+      setReviewsByLocation(prev => ({ ...prev, [locationId]: Array.isArray(data.reviews) ? data.reviews : [] }));
+      showToast('All comments deleted for this location.', 'success');
+    } catch {
+      showToast('Delete all comments failed.', 'error');
+    }
+  };
+
+  const handleOpenReviewFromAdmin = (locationId: string, reviewId: number) => {
+    localStorage.setItem('reviewTarget', `${locationId}:${reviewId}`);
+    navigate(`/gallery/${locationId}`);
+  };
+
+  const handleNameChange = (name: string) => {
+    const newId = slugify(name);
+    setForm(f => ({ ...f, name, id: editing ? f.id : newId }));
+  };
+
+  const handlePlaceSelect = (place: { name: string; lat: string; lng: string }) => {
+    const newId = slugify(place.name);
+    setForm(f => ({ ...f, name: place.name, id: editing ? f.id : newId, lat: place.lat, lng: place.lng }));
+  };
+
+  const takenDestinations = useMemo(
+    () => locations
+      .filter(loc => loc.id !== editing)
+      .map(loc => ({ name: loc.name, lat: loc.lat, lng: loc.lng })),
+    [locations, editing]
+  );
+
+  const takenChapters = useMemo(
+    () => locations.filter(loc => loc.id !== editing && !loc.is_archived).map(loc => loc.chapter),
+    [locations, editing]
+  );
+
+  const isChapterTaken = useCallback((chapter: string) => takenChapters.includes(chapter), [takenChapters]);
+
+  const handleChapterChange = (chapter: string) => {
+    if (isChapterTaken(chapter)) {
+      showToast(`${chapter} is already used by another active location.`, 'error');
+      return;
+    }
+    setForm(f => ({ ...f, chapter }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.short_desc || !form.img) {
+      showToast('Name, short description and thumbnail are required.', 'error');
+      return;
+    }
+    if (isChapterTaken(form.chapter)) {
+      showToast(`${form.chapter} is already used by another active location.`, 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = buildLocationPayload(form);
+      if (editing) {
+        const res = await fetch(`${API}/locations/${editing}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        showToast(`"${form.name}" updated successfully!`, 'success');
+      } else {
+        const res = await fetch(`${API}/locations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Error');
+        }
+        showToast(`"${form.name}" added to the journey!`, 'success');
+      }
+
+      setForm({ ...EMPTY_FORM, gallery_nodes: createAdminDefaultNodes() });
+      setEditing(null);
+      setActiveSection('list');
+      fetchLocations();
+    } catch (err: any) {
+      showToast(err.message || 'Something went wrong.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (loc: Location) => {
+    setForm(normalizeLocationFromApi(loc));
+    setEditing(loc.id);
+    setActiveSection('form');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleArchiveOrRestore = async (id: string) => {
+    const loc = locations.find(l => l.id === id);
+    if (!loc) return;
+    try {
+      if (loc.is_archived) {
+        const res = await fetch(`${API}/locations/${id}/restore`, { method: 'POST' });
+        if (!res.ok) throw new Error();
+        showToast(`"${loc.name}" restored.`, 'success');
+      } else {
+        const res = await fetch(`${API}/locations/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error();
+        showToast(`"${loc.name}" archived.`, 'success');
+      }
+      setArchiveConfirm(null);
+      fetchLocations();
+    } catch {
+      showToast(loc.is_archived ? 'Restore failed.' : 'Archive failed.', 'error');
+    }
+  };
+
+  const cancelForm = () => {
+    setForm({ ...EMPTY_FORM, gallery_nodes: createAdminDefaultNodes() });
+    setEditing(null);
+    setActiveSection('list');
+  };
+
+  const formatReviewDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
 
   const visibleLocations = useMemo(
     () => locations.filter(loc => listTab === 'archived' ? loc.is_archived : !loc.is_archived),
@@ -1202,225 +1358,47 @@ export default function AdminPanel() {
     }
   };
 
-  useEffect(() => {
-    if (selectedLocationForReviews) {
-      fetchReviewsForLocation(selectedLocationForReviews);
-      fetchImageNotesForLocation(selectedLocationForReviews);
-    }
-  }, [selectedLocationForReviews, locations]);
-
-  const handleSelectLocationForReviews = (locationId: string) => {
-    setSelectedLocationForReviews(locationId);
-  };
-
-  const handleDeleteReview = async (locationId: string, reviewId: number) => {
-    if (!window.confirm('Delete this comment?')) return;
-    try {
-      const res = await fetch(`${API}/locations/${locationId}/reviews/${reviewId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      const data: ReviewsResponse = await res.json();
-      setReviewsByLocation(prev => ({ ...prev, [locationId]: Array.isArray(data.reviews) ? data.reviews : [] }));
-      showToast('Comment deleted.', 'success');
-    } catch {
-      showToast('Delete comment failed.', 'error');
-    }
-  };
-
-  const handleDeleteImageNote = async (locationId: string, noteId: number) => {
-    if (!window.confirm('Delete this image note?')) return;
-    try {
-      const res = await fetch(`${API}/locations/${locationId}/image-notes/${noteId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      const data: ImageNotesResponse = await res.json();
-      setImageNotesByLocation(prev => {
-        const currentNotes = prev[locationId] || [];
-        const refreshedNotes = currentNotes.filter(note => note.id !== noteId);
-        if (Array.isArray(data.notes) && data.notes.length > 0) {
-          return { ...prev, [locationId]: [...refreshedNotes.filter(n => n.image_src !== data.notes[0].image_src), ...data.notes] };
-        }
-        return { ...prev, [locationId]: refreshedNotes };
-      });
-      showToast('Image note deleted.', 'success');
-    } catch {
-      showToast('Delete image note failed.', 'error');
-    }
-  };
-
-  const handleDeleteAllReviewsForLocation = async (locationId: string) => {
-    if (!window.confirm('Delete all comments for this location?')) return;
-    try {
-      const res = await fetch(`${API}/locations/${locationId}/reviews`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      const data: ReviewsResponse = await res.json();
-      setReviewsByLocation(prev => ({ ...prev, [locationId]: Array.isArray(data.reviews) ? data.reviews : [] }));
-      showToast('All comments deleted for this location.', 'success');
-    } catch {
-      showToast('Delete all comments failed.', 'error');
-    }
-  };
-
-  const handleOpenReviewFromAdmin = (locationId: string, reviewId: number) => {
-    localStorage.setItem('reviewTarget', `${locationId}:${reviewId}`);
-    navigate(`/gallery/${locationId}`);
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (username === 'vohoangngan85' && password === 'vohoangngan85') {
-      setIsLoggedIn(true);
-      setLoginError('');
-      showToast('Login successful', 'success');
-    } else {
-      setLoginError('Invalid credentials');
-    }
-  };
-
-  const handleNameChange = (name: string) => {
-    const newId = slugify(name);
-    setForm(f => ({ ...f, name, id: editing ? f.id : newId }));
-  };
-
-  const handlePlaceSelect = (place: { name: string; lat: string; lng: string }) => {
-    const newId = slugify(place.name);
-    setForm(f => ({ ...f, name: place.name, id: editing ? f.id : newId, lat: place.lat, lng: place.lng }));
-  };
-
-  const takenDestinations = useMemo(
-    () => locations
-      .filter(loc => loc.id !== editing)
-      .map(loc => ({ name: loc.name, lat: loc.lat, lng: loc.lng })),
-    [locations, editing]
-  );
-
-  const takenChapters = useMemo(
-    () => locations.filter(loc => loc.id !== editing && !loc.is_archived).map(loc => loc.chapter),
-    [locations, editing]
-  );
-
-  const isChapterTaken = useCallback((chapter: string) => takenChapters.includes(chapter), [takenChapters]);
-
-  const handleChapterChange = (chapter: string) => {
-    if (isChapterTaken(chapter)) {
-      showToast(`${chapter} is already used by another active location.`, 'error');
-      return;
-    }
-    setForm(f => ({ ...f, chapter }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name || !form.short_desc || !form.img) {
-      showToast('Name, short description and thumbnail are required.', 'error');
-      return;
-    }
-    if (isChapterTaken(form.chapter)) {
-      showToast(`${form.chapter} is already used by another active location.`, 'error');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const payload = buildLocationPayload(form);
-      if (editing) {
-        const res = await fetch(`${API}/locations/${editing}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        showToast(`"${form.name}" updated successfully!`, 'success');
-      } else {
-        const res = await fetch(`${API}/locations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || 'Error');
-        }
-        showToast(`"${form.name}" added to the journey!`, 'success');
-      }
-
-      setForm({ ...EMPTY_FORM, gallery_nodes: createDefaultNodes() });
-      setEditing(null);
-      setActiveSection('list');
-      fetchLocations();
-    } catch (err: any) {
-      showToast(err.message || 'Something went wrong.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEdit = (loc: Location) => {
-    setForm(normalizeLocationFromApi(loc));
-    setEditing(loc.id);
-    setActiveSection('form');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleArchiveOrRestore = async (id: string) => {
-    const loc = locations.find(l => l.id === id);
-    if (!loc) return;
-    try {
-      if (loc.is_archived) {
-        const res = await fetch(`${API}/locations/${id}/restore`, { method: 'POST' });
-        if (!res.ok) throw new Error();
-        showToast(`"${loc.name}" restored.`, 'success');
-      } else {
-        const res = await fetch(`${API}/locations/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error();
-        showToast(`"${loc.name}" archived.`, 'success');
-      }
-      setArchiveConfirm(null);
-      fetchLocations();
-    } catch {
-      showToast(loc.is_archived ? 'Restore failed.' : 'Archive failed.', 'error');
-    }
-  };
-
-  const cancelForm = () => {
-    setForm({ ...EMPTY_FORM, gallery_nodes: createDefaultNodes() });
-    setEditing(null);
-    setActiveSection('list');
-  };
-
-  const formatReviewDate = (value: string) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}-${month}-${year}`;
-  };
-
-
   if (!isLoggedIn) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card rounded-2xl p-8 ghost-border max-w-sm w-full mx-4 space-y-6 bg-surface-container/40 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)]">
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="glass-card rounded-2xl p-8 w-full max-w-sm ghost-border space-y-6">
           <div className="text-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 border border-primary/20"><Star size={32} className="text-primary" /></div>
-            <h1 className="font-headline text-2xl font-black text-on-surface">sTripKaka Admin</h1>
-            <p className="text-secondary/60 text-xs uppercase tracking-widest font-tech mt-1">Authorized Personnel Only</p>
+            <span className="font-tech text-[10px] uppercase tracking-widest text-primary/60">Restricted Access</span>
+            <h1 className="font-headline text-3xl font-extrabold text-on-surface mt-2">Admin Login</h1>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-tech uppercase tracking-widest text-secondary/70 ml-1">Username</label>
-              <input type="text" className={inputCls} value={username} onChange={e => setUsername(e.target.value)} placeholder="Enter username" />
+            <div>
+              <label className="text-[11px] font-tech uppercase tracking-widest text-secondary/70">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                className={inputCls + ' mt-2'}
+                placeholder="Enter username"
+              />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-tech uppercase tracking-widest text-secondary/70 ml-1">Password</label>
-              <input type="password" className={inputCls} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password" />
+            <div>
+              <label className="text-[11px] font-tech uppercase tracking-widest text-secondary/70">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className={inputCls + ' mt-2'}
+                placeholder="Enter password"
+              />
             </div>
-            {loginError && <p className="text-red-400 text-xs flex items-center gap-1.5 px-1"><AlertCircle size={14} /> {loginError}</p>}
-            <button type="submit" className="w-full py-3 bg-primary text-background font-headline font-bold rounded-xl text-sm shadow-[0_0_20px_rgba(233,195,73,0.3)] hover:shadow-[0_0_30px_rgba(233,195,73,0.5)] transition-all hover:scale-[1.02] cursor-pointer">
-              Access Command Center
+            {loginError && (
+              <p className="text-red-400 text-xs text-center font-tech uppercase tracking-wider">{loginError}</p>
+            )}
+            <button
+              type="submit"
+              className="w-full py-3 bg-primary text-background font-headline font-bold rounded-xl text-sm shadow-[0_0_20px_rgba(233,195,73,0.4)] hover:shadow-[0_0_30px_rgba(233,195,73,0.7)] transition-all hover:scale-[1.02] cursor-pointer"
+            >
+              Access Admin Panel
             </button>
           </form>
-        </motion.div>
+        </div>
 
         <AnimatePresence>{toast && <Toast msg={toast.msg} type={toast.type} />}</AnimatePresence>
       </div>
@@ -1436,7 +1414,7 @@ export default function AdminPanel() {
           <p className="text-secondary/60 text-sm mt-1">Manage your travel locations database</p>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <button onClick={() => setIsLoggedIn(false)} className="flex items-center gap-2 px-4 py-3 bg-white/5 text-secondary hover:text-on-surface font-headline font-bold rounded-xl text-sm border border-white/10 transition-all cursor-pointer">Logout</button>
+          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-3 bg-white/5 text-secondary hover:text-on-surface font-headline font-bold rounded-xl text-sm border border-white/10 transition-all cursor-pointer">Logout</button>
           <button onClick={() => { cancelForm(); setActiveSection(activeSection === 'form' ? 'list' : 'form'); }} className="flex items-center gap-2 px-6 py-3 bg-primary text-background font-headline font-bold rounded-xl text-sm shadow-[0_0_20px_rgba(233,195,73,0.4)] hover:shadow-[0_0_30px_rgba(233,195,73,0.7)] transition-all hover:scale-[1.02] cursor-pointer">
             {activeSection === 'form' ? <><X size={16} /> Cancel</> : <><Plus size={16} /> Add Location</>}
           </button>

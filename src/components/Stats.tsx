@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, BarChart3, Clock3, Flame, Star } from 'lucide-react';
 import { MagneticCard } from './Dashboard';
 import { apiUrl, fetchPopularThisWeek, fetchTrafficSeries, getRecentViews } from '../lib/api';
+import { cachedFetchJson } from '../lib/apiCache';
 import { cldUrl, cldSrcSet } from '../lib/cloudinary';
 import Seo from './Seo';
 
@@ -214,12 +215,8 @@ export default function Stats({ setActiveTab }: StatsProps) {
 
   useEffect(() => {
     setLoadingLocations(true);
-    fetch(apiUrl('/locations'))
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch locations');
-        return res.json();
-      })
-      .then((data: LocationItem[]) => setLocations(Array.isArray(data) ? data : []))
+    cachedFetchJson<LocationItem[]>(apiUrl('/locations'))
+      .then((data) => setLocations(Array.isArray(data) ? data : []))
       .catch(() => setLocations([]))
       .finally(() => setLoadingLocations(false));
 

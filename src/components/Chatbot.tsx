@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, X, Bot, Sparkles, MapPin, MessageCircle, RefreshCw } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import LazyMarkdown from './LazyMarkdown';
 import { getOrCreateViewerKey, getRecentViews, sendChatbotMessage, type ChatbotSuggestion } from '../lib/api';
 import { cldUrl } from '../lib/cloudinary';
 
@@ -203,7 +202,7 @@ export default function Chatbot({ setActiveTab, currentLocationId }: { setActive
                   <div className={`max-w-[88%] rounded-xl px-3 py-2.5 border ${msg.role === 'user' ? 'bg-primary/15 border-primary/30 text-on-surface' : msg.error ? 'bg-rose-500/10 border-rose-400/30 text-rose-200' : 'bg-white/[0.03] border-white/10 text-on-surface/90'}`}>
                     {msg.role === 'assistant' ? (
                       <div className="prose prose-invert prose-sm max-w-none [&_p]:text-[12px] [&_p]:leading-relaxed [&_p]:m-0 [&_ul]:my-2 [&_ol]:my-2 [&_li]:text-[12px] [&_strong]:text-on-surface">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        <LazyMarkdown>{msg.content}</LazyMarkdown>
                       </div>
                     ) : (
                       <p className="text-[12px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
