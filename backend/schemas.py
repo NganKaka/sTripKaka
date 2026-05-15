@@ -78,6 +78,28 @@ class LocationOut(LocationBase):
         from_attributes = True
 
 
+class LocationListItem(BaseModel):
+    """Slim payload for list endpoints — only fields used by Dashboard / Map / Archives."""
+    id: str
+    name: str
+    chapter: str
+    short_desc: str
+    img: str
+    visited_date: str
+    highlight_type: str
+    lat: str
+    lng: str
+    full_description: Optional[str] = None
+    average_stars: float = 5.0
+    total_reviews: int = 0
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
+    image_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
 class RestoreLocationResponse(BaseModel):
     location: LocationOut
 
@@ -150,7 +172,7 @@ class NotificationsOut(BaseModel):
 
 
 class PaginatedLocations(BaseModel):
-    items: List[LocationOut]
+    items: List[LocationListItem]
     total: int
     has_more: bool
 
@@ -160,7 +182,7 @@ class LocationViewCreate(BaseModel):
     viewer_key: Optional[str] = Field(default=None, max_length=120)
 
 
-class LocationWeeklyViewOut(LocationOut):
+class LocationWeeklyViewOut(LocationListItem):
     weekly_views: int = 0
 
 

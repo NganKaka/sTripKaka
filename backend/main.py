@@ -1,11 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Request
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Request, Response
 from urllib.parse import urlparse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Dict, List, Optional
 from datetime import datetime, timezone, timedelta
+from collections import defaultdict, deque
 import hashlib
 import os
 import re
@@ -19,8 +21,9 @@ import cloudinary.uploader
 
 import models
 import schemas
+from chatbot import ChatbotMessageRequest, ChatbotMessageResponse, ChatbotPreferences, ChatbotResponse, generate_chat_response, generate_recommendations
 from database import engine, get_db
-from services.weather import fetch_weather_sync
+from services.weather import fetch_weather
 
 app = FastAPI(
     title="sTripKaka Backend API",
@@ -37,6 +40,40 @@ CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
 CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
 HAS_CLOUDINARY_CONFIG = all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET])
 
+RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_MAX_REQUESTS = 6
+_RATE_LIMITER_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
+
+# Review-aggregate TTL cache: maps tuple(sorted location_ids) -> (expires_at, {id: aggregate}).
+REVIEW_AGG_TTL = 60.0
+_REVIEW_AGG_CACHE: dict[tuple, tuple[float, Dict[str, Dict[str, float | int]]]] = {}
+_REVIEW_AGG_HITS = 0
+_REVIEW_AGG_MISSES = 0
+
+
+def _client_ip(request: Request) -> str:
+    x_forwarded_for = request.headers.get("x-forwarded-for", "")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip() or "unknown"
+    return request.client.host if request.client else "unknown"
+
+
+def _enforce_rate_limit(request: Request, scope: str, location_id: str):
+    now = time.time()
+    window_start = now - RATE_LIMIT_WINDOW_SECONDS
+    bucket_key = f"{_client_ip(request)}|{scope}|{location_id}"
+    bucket = _RATE_LIMITER_BUCKETS[bucket_key]
+    while bucket and bucket[0] < window_start:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_MAX_REQUESTS:
+        raise HTTPException(status_code=429, detail="Too many requests. Please wait and try again.")
+    bucket.append(now)
+    if len(_RATE_LIMITER_BUCKETS) > 1024:
+        # Drop buckets that have aged out of their window so the dict can't grow unbounded.
+        for stale_key in [key for key, b in _RATE_LIMITER_BUCKETS.items() if not b or b[-1] < window_start]:
+            _RATE_LIMITER_BUCKETS.pop(stale_key, None)
+
+
 if HAS_CLOUDINARY_CONFIG:
     cloudinary.config(
         cloud_name=CLOUDINARY_CLOUD_NAME,
@@ -46,6 +83,7 @@ if HAS_CLOUDINARY_CONFIG:
     )
 
 # â”€â”€ CORS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -63,9 +101,65 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def server_timing_middleware(request: Request, call_next):
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    response.headers["Server-Timing"] = f"app;dur={elapsed_ms:.1f}"
+    return response
+
+
+_PROCESS_STARTED_AT = time.time()
+
+
+def _set_public_cache(response: Response, max_age: int = 60, swr: int = 300):
+    response.headers["Cache-Control"] = f"public, max-age={max_age}, stale-while-revalidate={swr}"
+
+
+def _set_no_store(response: Response):
+    response.headers["Cache-Control"] = "private, no-store"
+
+
 @app.get("/", tags=["Health"])
 def read_root():
     return {"status": "sTripKaka API running", "version": "1.2.0"}
+
+
+@app.get("/api/_debug/stats", tags=["Health"])
+def debug_stats(request: Request, response: Response):
+    """Internal observability: cache hit rates, DB pool, rate-limiter sizes, uptime.
+    Requires DEBUG_STATS_TOKEN env var; pass via ?token= or X-Debug-Token header."""
+    expected = os.getenv("DEBUG_STATS_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(status_code=404, detail="Not found")
+    provided = request.query_params.get("token") or request.headers.get("x-debug-token", "")
+    if provided != expected:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    _set_no_store(response)
+    pool = engine.pool
+    total_lookups = _REVIEW_AGG_HITS + _REVIEW_AGG_MISSES
+    hit_rate = (_REVIEW_AGG_HITS / total_lookups) if total_lookups else 0.0
+    return {
+        "uptime_seconds": int(time.time() - _PROCESS_STARTED_AT),
+        "review_aggregate_cache": {
+            "size": len(_REVIEW_AGG_CACHE),
+            "hits": _REVIEW_AGG_HITS,
+            "misses": _REVIEW_AGG_MISSES,
+            "hit_rate": round(hit_rate, 3),
+            "ttl_seconds": REVIEW_AGG_TTL,
+        },
+        "rate_limiter": {
+            "review_buckets": len(_RATE_LIMITER_BUCKETS),
+        },
+        "db_pool": {
+            "size": getattr(pool, "size", lambda: None)() if callable(getattr(pool, "size", None)) else None,
+            "checked_in": getattr(pool, "checkedin", lambda: None)() if callable(getattr(pool, "checkedin", None)) else None,
+            "checked_out": getattr(pool, "checkedout", lambda: None)() if callable(getattr(pool, "checkedout", None)) else None,
+            "overflow": getattr(pool, "overflow", lambda: None)() if callable(getattr(pool, "overflow", None)) else None,
+        },
+    }
 
 
 def _normalize_node_images(images: Optional[List[str]]) -> List[str]:
@@ -137,8 +231,17 @@ def _normalize_featured_images(featured_images: Optional[List[str]], hero_poster
 
 
 def _get_reviews_aggregate_for_ids(db: Session, location_ids: List[str]) -> Dict[str, Dict[str, float | int]]:
+    global _REVIEW_AGG_HITS, _REVIEW_AGG_MISSES
     if not location_ids:
         return {}
+    cache_key = tuple(sorted(location_ids))
+    now = time.time()
+    cached = _REVIEW_AGG_CACHE.get(cache_key)
+    if cached is not None and cached[0] > now:
+        _REVIEW_AGG_HITS += 1
+        return cached[1]
+    _REVIEW_AGG_MISSES += 1
+
     rows = (
         db.query(
             models.Review.location_id,
@@ -149,13 +252,23 @@ def _get_reviews_aggregate_for_ids(db: Session, location_ids: List[str]) -> Dict
         .group_by(models.Review.location_id)
         .all()
     )
-    return {
+    result = {
         row.location_id: {
             "average_stars": float(row.average_stars) if row.average_stars is not None else 5.0,
             "total_reviews": int(row.total_reviews or 0),
         }
         for row in rows
     }
+    _REVIEW_AGG_CACHE[cache_key] = (now + REVIEW_AGG_TTL, result)
+    if len(_REVIEW_AGG_CACHE) > 256:
+        # Best-effort eviction — drop the oldest entry by expiry.
+        oldest = min(_REVIEW_AGG_CACHE, key=lambda k: _REVIEW_AGG_CACHE[k][0])
+        _REVIEW_AGG_CACHE.pop(oldest, None)
+    return result
+
+
+def _invalidate_review_aggregates():
+    _REVIEW_AGG_CACHE.clear()
 
 
 def _resolve_asset_url(value: Optional[str], request: Optional[Request] = None) -> Optional[str]:
@@ -199,10 +312,13 @@ def _serialize_location(loc: models.Location, aggregate: Optional[Dict[str, floa
     data["total_reviews"] = int((aggregate or {}).get("total_reviews", 0))
     data["is_archived"] = bool(getattr(loc, "is_archived", 0))
     data["archived_at"] = getattr(loc, "archived_at", None)
+    return data
 
-    # Best-effort ambient weather enrichment
+
+async def _attach_weather(data: dict, loc: models.Location) -> dict:
+    """Async weather enrichment for single-location responses only."""
     try:
-        weather = fetch_weather_sync(loc.lat, loc.lng)
+        weather = await fetch_weather(loc.lat, loc.lng)
         if weather is not None:
             data["ambient"] = {
                 "weather": {
@@ -216,13 +332,47 @@ def _serialize_location(loc: models.Location, aggregate: Optional[Dict[str, floa
             }
     except Exception:
         pass  # Never let weather break the location response
-
     return data
 
 
 def _serialize_locations_with_aggregates(db: Session, locations: List[models.Location], request: Optional[Request] = None):
     aggregates = _get_reviews_aggregate_for_ids(db, [loc.id for loc in locations])
     return [_serialize_location(loc, aggregates.get(loc.id), request) for loc in locations]
+
+
+def _serialize_location_slim(loc: models.Location, aggregate: Optional[Dict[str, float | int]] = None, request: Optional[Request] = None):
+    """Slim payload for list endpoints — skips heavy fields and weather."""
+    nodes = getattr(loc, "gallery_nodes", None) or []
+    node_image_count = 0
+    if isinstance(nodes, list):
+        for node in nodes:
+            if isinstance(node, dict):
+                node_image_count += sum(1 for img in (node.get("images") or []) if img)
+    flat_image_count = sum(1 for img in (loc.gallery_images or []) if img)
+    image_count = node_image_count or flat_image_count
+
+    return {
+        "id": loc.id,
+        "name": loc.name,
+        "chapter": loc.chapter,
+        "short_desc": loc.short_desc,
+        "img": _resolve_asset_url(loc.img, request),
+        "visited_date": loc.visited_date,
+        "highlight_type": loc.highlight_type,
+        "lat": loc.lat,
+        "lng": loc.lng,
+        "full_description": loc.full_description,
+        "average_stars": float((aggregate or {}).get("average_stars", 5.0)),
+        "total_reviews": int((aggregate or {}).get("total_reviews", 0)),
+        "is_archived": bool(getattr(loc, "is_archived", 0)),
+        "archived_at": getattr(loc, "archived_at", None),
+        "image_count": image_count,
+    }
+
+
+def _serialize_locations_slim(db: Session, locations: List[models.Location], request: Optional[Request] = None):
+    aggregates = _get_reviews_aggregate_for_ids(db, [loc.id for loc in locations])
+    return [_serialize_location_slim(loc, aggregates.get(loc.id), request) for loc in locations]
 
 
 def _serialize_location_with_aggregate(db: Session, loc: models.Location, request: Optional[Request] = None):
@@ -251,11 +401,16 @@ def _apply_location_filters(query, highlight_type: Optional[str] = None, chapter
     normalized_search = _normalize_search_query(search)
     if normalized_search:
         like_term = f"%{normalized_search}%"
-        query = query.filter(
-            models.Location.name.ilike(like_term) |
-            models.Location.short_desc.ilike(like_term) |
-            models.Location.full_description.ilike(like_term)
+        # Match idx_locations_search_trgm exactly: coalesce(...) || ' ' || coalesce(...) || ' ' || coalesce(...)
+        # Same expression form lets Postgres pick the trigram GIN index for substring search.
+        searchable = (
+            func.coalesce(models.Location.name, '')
+            .op('||')(' ')
+            .op('||')(func.coalesce(models.Location.short_desc, ''))
+            .op('||')(' ')
+            .op('||')(func.coalesce(models.Location.full_description, ''))
         )
+        query = query.filter(searchable.ilike(like_term))
     return query
 
 
@@ -533,8 +688,8 @@ def _normalize_viewer_key(viewer_key: Optional[str]) -> Optional[str]:
     return normalized[:120] or None
 
 
-def _serialize_location_with_weekly_views(db: Session, loc: models.Location, weekly_views: int, request: Optional[Request] = None):
-    data = _serialize_location_with_aggregate(db, loc, request)
+def _serialize_location_with_weekly_views(loc: models.Location, weekly_views: int, aggregate: Optional[Dict[str, float | int]] = None, request: Optional[Request] = None):
+    data = _serialize_location_slim(loc, aggregate, request)
     data["weekly_views"] = int(weekly_views)
     return data
 
@@ -559,9 +714,10 @@ def _build_popular_this_week_response(db: Session, request: Request, limit: int 
 
     locations = db.query(models.Location).filter(models.Location.id.in_([row.location_id for row in rows])).all()
     location_map = {loc.id: loc for loc in locations}
+    aggregates = _get_reviews_aggregate_for_ids(db, list(location_map.keys()))
     return {
         "items": [
-            _serialize_location_with_weekly_views(db, location_map[row.location_id], int(row.weekly_views or 0), request)
+            _serialize_location_with_weekly_views(location_map[row.location_id], int(row.weekly_views or 0), aggregates.get(row.location_id), request)
             for row in rows
             if row.location_id in location_map
         ]
@@ -633,27 +789,35 @@ def _normalize_location_payload(payload: dict, for_patch: bool = False, existing
     return normalized
 
 
-@app.get("/api/locations", response_model=List[schemas.LocationOut], tags=["Locations"])
+@app.get("/api/locations", tags=["Locations"])
 def get_locations(
     request: Request,
+    response: Response,
     skip: int = 0,
     limit: int = 100,
     highlight_type: Optional[str] = None,
     chapter: Optional[str] = None,
     search: Optional[str] = None,
     include_archived: Optional[str] = None,
+    fields: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     include_archived_flag = _parse_include_archived_flag(include_archived)
     query = _filter_archived(db.query(models.Location), include_archived_flag)
     query = _apply_location_filters(query, highlight_type, chapter, search)
     locations = query.order_by(models.Location.visited_date.desc()).offset(skip).limit(limit).all()
-    return _serialize_locations_with_aggregates(db, locations, request)
+    if fields == "full":
+        # Admin-only path; never cache to ensure post-edit reloads are fresh.
+        _set_no_store(response)
+        return _serialize_locations_with_aggregates(db, locations, request)
+    _set_public_cache(response)
+    return _serialize_locations_slim(db, locations, request)
 
 
 @app.get("/api/locations/paginated", response_model=schemas.PaginatedLocations, tags=["Locations"])
 def get_locations_paginated(
     request: Request,
+    response: Response,
     skip: int = 0,
     limit: int = 10,
     highlight_type: Optional[str] = None,
@@ -669,17 +833,20 @@ def get_locations_paginated(
     total = query.count()
     items = query.order_by(models.Location.visited_date.desc()).offset(skip).limit(limit).all()
 
+    _set_public_cache(response)
     return {
-        "items": _serialize_locations_with_aggregates(db, items, request),
+        "items": _serialize_locations_slim(db, items, request),
         "total": total,
         "has_more": skip + limit < total
     }
 
 
 @app.get("/api/locations/{location_id}", response_model=schemas.LocationOut, tags=["Locations"])
-def get_location_by_id(request: Request, location_id: str, include_archived: Optional[str] = None, db: Session = Depends(get_db)):
+async def get_location_by_id(request: Request, response: Response, location_id: str, include_archived: Optional[str] = None, db: Session = Depends(get_db)):
     location = _ensure_location_exists(db, location_id, include_archived=_parse_include_archived_flag(include_archived))
-    return _serialize_location_with_aggregate(db, location, request)
+    data = _serialize_location_with_aggregate(db, location, request)
+    _set_public_cache(response)
+    return await _attach_weather(data, location)
 
 
 @app.post("/api/locations/{location_id}/views", tags=["Stats"])
@@ -709,7 +876,7 @@ def create_location_view(location_id: str, payload: schemas.LocationViewCreate, 
 
 
 @app.post("/api/locations", response_model=schemas.LocationOut, status_code=201, tags=["Locations"])
-def create_location(request: Request, location: schemas.LocationCreate, db: Session = Depends(get_db)):
+async def create_location(request: Request, location: schemas.LocationCreate, db: Session = Depends(get_db)):
     if db.query(models.Location).filter(models.Location.id == location.id).first():
         raise HTTPException(status_code=400, detail="Location ID already exists")
     _ensure_unique_chapter(db, location.chapter)
@@ -719,11 +886,12 @@ def create_location(request: Request, location: schemas.LocationCreate, db: Sess
     db.add(new_location)
     db.commit()
     db.refresh(new_location)
-    return _serialize_location_with_aggregate(db, new_location, request)
+    data = _serialize_location_with_aggregate(db, new_location, request)
+    return await _attach_weather(data, new_location)
 
 
 @app.put("/api/locations/{location_id}", response_model=schemas.LocationOut, tags=["Locations"])
-def update_location(request: Request, location_id: str, payload: schemas.LocationCreate, db: Session = Depends(get_db)):
+async def update_location(request: Request, location_id: str, payload: schemas.LocationCreate, db: Session = Depends(get_db)):
     loc = db.query(models.Location).filter(models.Location.id == location_id).first()
     if loc is None:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -735,11 +903,12 @@ def update_location(request: Request, location_id: str, payload: schemas.Locatio
 
     db.commit()
     db.refresh(loc)
-    return _serialize_location_with_aggregate(db, loc, request)
+    data = _serialize_location_with_aggregate(db, loc, request)
+    return await _attach_weather(data, loc)
 
 
 @app.patch("/api/locations/{location_id}", response_model=schemas.LocationOut, tags=["Locations"])
-def patch_location(request: Request, location_id: str, payload: schemas.LocationPatch, db: Session = Depends(get_db)):
+async def patch_location(request: Request, location_id: str, payload: schemas.LocationPatch, db: Session = Depends(get_db)):
     loc = db.query(models.Location).filter(models.Location.id == location_id).first()
     if loc is None:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -754,7 +923,8 @@ def patch_location(request: Request, location_id: str, payload: schemas.Location
 
     db.commit()
     db.refresh(loc)
-    return _serialize_location_with_aggregate(db, loc, request)
+    data = _serialize_location_with_aggregate(db, loc, request)
+    return await _attach_weather(data, loc)
 
 
 @app.delete("/api/locations/{location_id}", status_code=204, tags=["Locations"])
@@ -768,7 +938,7 @@ def archive_location(location_id: str, db: Session = Depends(get_db)):
 
 
 @app.post("/api/locations/{location_id}/restore", response_model=schemas.RestoreLocationResponse, tags=["Locations"])
-def restore_location(request: Request, location_id: str, db: Session = Depends(get_db)):
+async def restore_location(request: Request, location_id: str, db: Session = Depends(get_db)):
     loc = db.query(models.Location).filter(models.Location.id == location_id).first()
     if loc is None:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -776,7 +946,9 @@ def restore_location(request: Request, location_id: str, db: Session = Depends(g
     loc.archived_at = None
     db.commit()
     db.refresh(loc)
-    return schemas.RestoreLocationResponse(location=_serialize_location_with_aggregate(db, loc, request))
+    data = _serialize_location_with_aggregate(db, loc, request)
+    data = await _attach_weather(data, loc)
+    return schemas.RestoreLocationResponse(location=data)
 
 
 @app.get("/api/locations/{location_id}/reviews", response_model=schemas.LocationReviewsOut, tags=["Reviews"])
@@ -786,7 +958,8 @@ def get_location_reviews(location_id: str, db: Session = Depends(get_db)):
 
 
 @app.post("/api/locations/{location_id}/reviews", response_model=schemas.LocationReviewsOut, status_code=201, tags=["Reviews"])
-def create_location_review(location_id: str, payload: schemas.ReviewCreate, db: Session = Depends(get_db)):
+def create_location_review(request: Request, location_id: str, payload: schemas.ReviewCreate, db: Session = Depends(get_db)):
+    _enforce_rate_limit(request, "reviews:create", location_id)
     location = _ensure_location_exists(db, location_id)
 
     stars = _validate_stars(payload.stars)
@@ -811,6 +984,7 @@ def create_location_review(location_id: str, payload: schemas.ReviewCreate, db: 
     )
     db.add(notification)
     db.commit()
+    _invalidate_review_aggregates()
 
     return _build_location_reviews_response(db, location_id)
 
@@ -823,6 +997,7 @@ def delete_location_review(location_id: str, review_id: int, db: Session = Depen
         raise HTTPException(status_code=404, detail="Review not found")
     db.delete(review)
     db.commit()
+    _invalidate_review_aggregates()
     return _build_location_reviews_response(db, location_id)
 
 
@@ -831,6 +1006,7 @@ def delete_all_location_reviews(location_id: str, db: Session = Depends(get_db))
     _ensure_location_exists(db, location_id, include_archived=True)
     db.query(models.Review).filter(models.Review.location_id == location_id).delete(synchronize_session=False)
     db.commit()
+    _invalidate_review_aggregates()
     return _build_location_reviews_response(db, location_id)
 
 
@@ -844,7 +1020,8 @@ def get_image_notes(location_id: str, image_src: str, db: Session = Depends(get_
 
 
 @app.post("/api/locations/{location_id}/image-notes", response_model=schemas.ImageNotesOut, status_code=201, tags=["ImageNotes"])
-def create_image_note(location_id: str, payload: schemas.ImageNoteCreate, db: Session = Depends(get_db)):
+def create_image_note(request: Request, location_id: str, payload: schemas.ImageNoteCreate, db: Session = Depends(get_db)):
+    _enforce_rate_limit(request, "image_notes:create", location_id)
     location = _ensure_location_exists(db, location_id)
     image_src = _normalize_image_src_or_fail(payload.image_src)
     if image_src not in _extract_location_gallery_image_set(location):
@@ -977,28 +1154,57 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
 
 
 @app.get("/api/stats", response_model=schemas.StatsOut, tags=["Stats"])
-def get_stats(db: Session = Depends(get_db)):
-    active_locations_query = db.query(models.Location).filter(models.Location.is_archived == 0)
-    total_locations = active_locations_query.count()
-    locations = active_locations_query.all()
-    chapters = list({loc.chapter for loc in locations})
+def get_stats(response: Response, db: Session = Depends(get_db)):
+    type_rows = (
+        db.query(models.Location.highlight_type, func.count(models.Location.id))
+        .filter(models.Location.is_archived == 0)
+        .group_by(models.Location.highlight_type)
+        .all()
+    )
+    type_counts = {row[0]: int(row[1] or 0) for row in type_rows}
+    total_locations = sum(type_counts.values())
+    total_chapters = (
+        db.query(func.count(func.distinct(models.Location.chapter)))
+        .filter(models.Location.is_archived == 0)
+        .scalar()
+    ) or 0
 
+    _set_public_cache(response)
     return schemas.StatsOut(
         total_locations=total_locations,
-        total_chapters=len(chapters),
-        locations_by_type={
-            ht: db.query(func.count(models.Location.id))
-                .filter(models.Location.highlight_type == ht, models.Location.is_archived == 0).scalar() or 0
-            for ht in ("primary", "secondary", "highlight")
-        },
+        total_chapters=int(total_chapters),
+        locations_by_type={ht: type_counts.get(ht, 0) for ht in ("primary", "secondary", "highlight")},
     )
 
 
 @app.get("/api/stats/popular-this-week", response_model=schemas.PopularWeeklyOut, tags=["Stats"])
-def get_popular_this_week(request: Request, limit: int = 6, db: Session = Depends(get_db)):
+def get_popular_this_week(request: Request, response: Response, limit: int = 6, db: Session = Depends(get_db)):
+    _set_public_cache(response)
     return _build_popular_this_week_response(db, request, limit)
 
 
 @app.get("/api/stats/traffic-series", response_model=schemas.TrafficSeriesOut, tags=["Stats"])
-def get_traffic_series(range_days: int = 7, db: Session = Depends(get_db)):
+def get_traffic_series(response: Response, range_days: int = 7, db: Session = Depends(get_db)):
+    _set_public_cache(response)
     return _build_traffic_series_response(db, range_days)
+
+
+@app.post("/api/chatbot/recommend", response_model=ChatbotResponse, tags=["Chatbot"])
+def chatbot_recommend(preferences: ChatbotPreferences, db: Session = Depends(get_db)):
+    return generate_recommendations(preferences, db)
+
+
+@app.post("/api/chatbot/message", response_model=ChatbotMessageResponse, tags=["Chatbot"])
+def chatbot_message(request: Request, payload: ChatbotMessageRequest, db: Session = Depends(get_db)):
+    client_key = payload.viewer_key or _client_ip(request)
+    try:
+        return generate_chat_response(payload, db, client_key)
+    except ValueError as exc:
+        detail = str(exc)
+        if detail.startswith("Too many chat messages"):
+            raise HTTPException(status_code=429, detail=detail)
+        raise HTTPException(status_code=400, detail=detail)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not generate chatbot reply")
