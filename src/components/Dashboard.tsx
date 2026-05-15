@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { Globe, Image as ImageIcon, MapPin } from 'lucide-react';
-import { apiUrl } from '../lib/api';
+import { apiUrl, LOCATIONS_LIST_TTL_MS } from '../lib/api';
 import { cachedFetchJson } from '../lib/apiCache';
 import { cldUrl, cldSrcSet } from '../lib/cloudinary';
 import { prefetchTripDetail } from '../lib/prefetch';
@@ -19,8 +19,7 @@ interface DbLocation {
   highlight_type: string;
   lat: string;
   lng: string;
-  gallery_nodes?: { images?: string[] }[];
-  gallery_images?: string[];
+  image_count?: number;
 }
 
 interface MetricItem {
@@ -38,17 +37,9 @@ const sortByVisitedDateDesc = (a: DbLocation, b: DbLocation) => {
   return b.id.localeCompare(a.id);
 };
 
-const countLocationImages = (location: DbLocation): number => {
-  const nodeImages = Array.isArray(location.gallery_nodes)
-    ? location.gallery_nodes.flatMap(node => Array.isArray(node.images) ? node.images.filter(Boolean) : [])
-    : [];
-  if (nodeImages.length) return nodeImages.length;
-  return Array.isArray(location.gallery_images) ? location.gallery_images.filter(Boolean).length : 0;
-};
-
 const computeMetrics = (locations: DbLocation[]): MetricItem[] => {
   const expeditionCount = locations.length;
-  const totalImages = locations.reduce((sum, location) => sum + countLocationImages(location), 0);
+  const totalImages = locations.reduce((sum, location) => sum + (Number(location.image_count) || 0), 0);
   const uniqueStops = new Set(locations.map(location => location.name.trim()).filter(Boolean)).size;
 
   return [
@@ -138,11 +129,22 @@ function Typewriter({ words }: { words: string[] }) {
   const [index, setIndex] = useState(0);
   const [text, setText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const inView = useInView(containerRef, { margin: '0px' });
+  const prefersReducedMotion = useRef(
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  );
 
   useEffect(() => {
+    if (prefersReducedMotion.current) {
+      setText(words[0] || '');
+      return;
+    }
+    if (!inView) return;
+
     const currentWord = words[index];
     const typingSpeed = isDeleting ? 75 : 150;
-    
+
     const timeout = setTimeout(() => {
       if (!isDeleting) {
         setText(currentWord.substring(0, text.length + 1));
@@ -159,13 +161,13 @@ function Typewriter({ words }: { words: string[] }) {
     }, text === currentWord ? 2500 : typingSpeed);
 
     return () => clearTimeout(timeout);
-  }, [text, isDeleting, index, words]);
+  }, [text, isDeleting, index, words, inView]);
 
   // Find the longest word to reserve space and prevent layout shifts
   const longestWord = words.reduce((a, b) => a.length > b.length ? a : b, "");
 
   return (
-    <span className="text-primary inline-grid relative">
+    <span ref={containerRef} className="text-primary inline-grid relative">
       {/* Ghost text to reserve space */}
       <span className="invisible pointer-events-none select-none col-start-1 row-start-1">
         {longestWord}
@@ -219,26 +221,54 @@ export function MagneticCard({ children, onClick, onMouseEnter, onFocus, classNa
 
   useEffect(() => {
     if (!attractOnProximity) return;
-    const handler = (e: MouseEvent) => {
-      if (!ref.current) return;
-      const rect = ref.current.getBoundingClientRect();
+    const el = ref.current;
+    if (!el) return;
+
+    let cachedRect: DOMRect | null = null;
+    const refreshRect = () => {
+      cachedRect = el.getBoundingClientRect();
+    };
+    refreshRect();
+
+    let pending = false;
+    let lastClientX = 0;
+    let lastClientY = 0;
+
+    const flush = () => {
+      pending = false;
+      if (!cachedRect) return;
+      const rect = cachedRect;
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
-      const dx = e.clientX - centerX;
-      const dy = e.clientY - centerY;
+      const dx = lastClientX - centerX;
+      const dy = lastClientY - centerY;
       const distance = Math.hypot(dx, dy);
       const radius = 180;
 
       if (distance <= radius) {
-        setFromPointer(e.clientX, e.clientY, rect);
+        setFromPointer(lastClientX, lastClientY, rect);
       } else {
         x.set(0);
         y.set(0);
       }
     };
 
-    window.addEventListener('mousemove', handler);
-    return () => window.removeEventListener('mousemove', handler);
+    const handleMove = (e: MouseEvent) => {
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(flush);
+    };
+
+    window.addEventListener('mousemove', handleMove, { passive: true });
+    window.addEventListener('scroll', refreshRect, { passive: true });
+    window.addEventListener('resize', refreshRect);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('scroll', refreshRect);
+      window.removeEventListener('resize', refreshRect);
+    };
   }, [attractOnProximity]);
 
   return (
@@ -275,7 +305,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
   const loadChapters = () => {
     setIsLoadingChapters(true);
     setChapterLoadError(false);
-    cachedFetchJson<DbLocation[]>(apiUrl('/locations'))
+    cachedFetchJson<DbLocation[]>(apiUrl('/locations'), LOCATIONS_LIST_TTL_MS)
       .then((data) => {
         setDbChapters(Array.isArray(data) && data.length > 0 ? data : []);
       })
@@ -380,7 +410,21 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
               transition={{ duration: 6, ease: "easeInOut", repeat: Infinity }}
               className="w-48 h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
             >
-              <img src="/full_body.png" className="w-full h-[123%] object-cover" referrerPolicy="no-referrer"/>
+              <picture>
+                <source type="image/webp" srcSet="/full_body-320.webp 320w, /full_body-480.webp 480w, /full_body-640.webp 640w" sizes="(min-width: 1024px) 192px, 192px" />
+                <img
+                  src="/full_body-480.jpg"
+                  srcSet="/full_body-320.jpg 320w, /full_body-480.jpg 480w, /full_body-640.jpg 640w"
+                  sizes="(min-width: 1024px) 192px, 192px"
+                  width={480}
+                  height={640}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-[123%] object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </picture>
             </motion.div>
           </motion.div>
 
@@ -390,15 +434,22 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
               transition={{ duration: 8, ease: "easeInOut", repeat: Infinity }}
               className="w-56 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
             >
-              <img
-                src="/landing_img_1.jpg"
-                alt=""
-                loading="eager"
-                decoding="async"
-                fetchPriority="high"
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
+              <picture>
+                <source type="image/webp" srcSet="/landing_img_1-320.webp 320w, /landing_img_1-480.webp 480w, /landing_img_1-640.webp 640w" sizes="(min-width: 1024px) 224px, 224px" />
+                <img
+                  src="/landing_img_1-480.jpg"
+                  srcSet="/landing_img_1-320.jpg 320w, /landing_img_1-480.jpg 480w, /landing_img_1-640.jpg 640w"
+                  sizes="(min-width: 1024px) 224px, 224px"
+                  width={480}
+                  height={269}
+                  alt=""
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </picture>
             </motion.div>
           </motion.div>
 
@@ -408,7 +459,21 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
               transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
               className="w-40 h-40 rounded-full overflow-hidden shadow-2xl border-4 border-background"
             >
-              <img src="/landing_img_2.png" className="w-full h-full object-cover" referrerPolicy="no-referrer"/>
+              <picture>
+                <source type="image/webp" srcSet="/landing_img_2-320.webp 320w, /landing_img_2-480.webp 480w, /landing_img_2-640.webp 640w" sizes="(min-width: 1024px) 160px, 160px" />
+                <img
+                  src="/landing_img_2-320.jpg"
+                  srcSet="/landing_img_2-320.jpg 320w, /landing_img_2-480.jpg 480w, /landing_img_2-640.jpg 640w"
+                  sizes="(min-width: 1024px) 160px, 160px"
+                  width={320}
+                  height={428}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </picture>
             </motion.div>
           </motion.div>
         </div>

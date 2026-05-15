@@ -6,7 +6,78 @@ const VIEWER_KEY_STORAGE = 'stripkaka_viewer_key';
 const RECENT_VIEWS_STORAGE = 'stripkaka_recent_views';
 const RECENT_VIEWS_LIMIT = 6;
 
+export const LOCATIONS_LIST_TTL_MS = 5 * 60 * 1000;
+
 export type LocationViewType = 'mission_detail' | 'gallery';
+
+export type ChatbotHistoryItem = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export type ChatbotSuggestion = {
+  id: string;
+  name: string;
+  chapter: string;
+  short_desc: string;
+  img: string;
+  highlight_type: string;
+  href: string;
+  why_matched?: string[];
+  action?: 'destination' | 'gallery';
+};
+
+export type ChatbotMessageResponse = {
+  reply: string;
+  suggestions: ChatbotSuggestion[];
+  source: 'gemini' | 'rules' | 'fallback';
+  intent?: string | null;
+  clarifying_question?: string | null;
+  applied_filters?: string[];
+};
+
+export type ChatbotMessageRequest = {
+  message: string;
+  history?: ChatbotHistoryItem[];
+  current_location_id?: string;
+  viewer_key?: string;
+  recent_location_ids?: string[];
+};
+
+export async function sendChatbotMessage(payload: ChatbotMessageRequest) {
+  const response = await fetch(apiUrl('/chatbot/message'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Failed to send chatbot message');
+  }
+
+  return response.json() as Promise<ChatbotMessageResponse>;
+}
+
+export async function fetchChatbotRecommendations(payload: {
+  weather_pref: string;
+  food_pref: string;
+  duration: string;
+  vibe: string;
+}) {
+  const response = await fetch(apiUrl('/chatbot/recommend'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to get recommendations');
+  }
+
+  return response.json();
+}
+
 
 export function apiUrl(path: string) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;

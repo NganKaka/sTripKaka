@@ -25,7 +25,15 @@
     <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
     <link rel="dns-prefetch" href="https://res.cloudinary.com" />
 
-    <link rel="preload" as="image" href="/landing_img_1.jpg" fetchpriority="high" />
+    <link
+      rel="preload"
+      as="image"
+      href="/landing_img_1-480.jpg"
+      imagesrcset="/landing_img_1-320.webp 320w, /landing_img_1-480.webp 480w, /landing_img_1-640.webp 640w"
+      imagesizes="224px"
+      type="image/webp"
+      fetchpriority="high"
+    />
   </head>
   <body>
     <div id="root"></div>

@@ -1046,7 +1046,7 @@ export default function AdminPanel() {
 
   const fetchLocations = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/locations?include_archived=true`);
+      const res = await fetch(`${API}/locations?include_archived=true&fields=full`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setLocations(Array.isArray(data) ? data.map(normalizeLocationFromApi) : []);

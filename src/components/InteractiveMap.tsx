@@ -1,8 +1,9 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import mapboxgl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { apiUrl } from '../lib/api';
+import { apiUrl, LOCATIONS_LIST_TTL_MS } from '../lib/api';
 import { cachedFetchJson } from '../lib/apiCache';
+import vietnamGeoJson from '../lib/vnm.geo.json';
 
 type HighlightType = 'primary' | 'secondary' | 'highlight';
 
@@ -131,7 +132,7 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
 
       m.addSource('vietnam', {
         type: 'geojson',
-        data: 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries/VNM.geo.json',
+        data: vietnamGeoJson as GeoJSON.GeoJSON,
       });
       m.addLayer({ id: 'vietnam-fill', type: 'fill', source: 'vietnam', paint: { 'fill-color': '#22d3ee', 'fill-opacity': 0.03 } });
       m.addLayer({ id: 'vietnam-border-glow', type: 'line', source: 'vietnam', paint: { 'line-color': '#22d3ee', 'line-width': 4, 'line-blur': 4, 'line-opacity': 0.15 } });
@@ -218,7 +219,7 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
   }, []);
 
   useEffect(() => {
-    cachedFetchJson<DbLocation[]>(apiUrl('/locations'))
+    cachedFetchJson<DbLocation[]>(apiUrl('/locations'), LOCATIONS_LIST_TTL_MS)
       .then((data) => {
         const mapped = Array.isArray(data)
           ? data

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, BarChart3, Clock3, Flame, Star } from 'lucide-react';
 import { MagneticCard } from './Dashboard';
-import { apiUrl, fetchPopularThisWeek, fetchTrafficSeries, getRecentViews } from '../lib/api';
+import { apiUrl, fetchPopularThisWeek, fetchTrafficSeries, getRecentViews, LOCATIONS_LIST_TTL_MS } from '../lib/api';
 import { cachedFetchJson } from '../lib/apiCache';
 import { cldUrl, cldSrcSet } from '../lib/cloudinary';
 import Seo from './Seo';
@@ -215,7 +215,7 @@ export default function Stats({ setActiveTab }: StatsProps) {
 
   useEffect(() => {
     setLoadingLocations(true);
-    cachedFetchJson<LocationItem[]>(apiUrl('/locations'))
+    cachedFetchJson<LocationItem[]>(apiUrl('/locations'), LOCATIONS_LIST_TTL_MS)
       .then((data) => setLocations(Array.isArray(data) ? data : []))
       .catch(() => setLocations([]))
       .finally(() => setLoadingLocations(false));
