@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, BarChart3, Clock3, Flame, Star } from 'lucide-react';
 import { MagneticCard } from './Dashboard';
-import { apiUrl, fetchPopularThisWeek, fetchTrafficSeries, getRecentViews } from '../lib/api';
+import { apiUrl, fetchPopularThisWeek, fetchTrafficSeries, getRecentViews, LOCATIONS_LIST_TTL_MS } from '../lib/api';
+import { cachedFetchJson } from '../lib/apiCache';
+import { cldUrl, cldSrcSet } from '../lib/cloudinary';
+import Seo from './Seo';
 
 type LocationItem = {
   id: string;
@@ -212,12 +215,8 @@ export default function Stats({ setActiveTab }: StatsProps) {
 
   useEffect(() => {
     setLoadingLocations(true);
-    fetch(apiUrl('/locations'))
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch locations');
-        return res.json();
-      })
-      .then((data: LocationItem[]) => setLocations(Array.isArray(data) ? data : []))
+    cachedFetchJson<LocationItem[]>(apiUrl('/locations'), LOCATIONS_LIST_TTL_MS)
+      .then((data) => setLocations(Array.isArray(data) ? data : []))
       .catch(() => setLocations([]))
       .finally(() => setLoadingLocations(false));
 
@@ -279,6 +278,11 @@ export default function Stats({ setActiveTab }: StatsProps) {
 
   return (
     <div className="space-y-20">
+      <Seo
+        title="Exploration Stats — Ngan's Trip"
+        description="Live signals on which trip chapters travelers are revisiting, loving, and exploring this week."
+        path="/stats"
+      />
       <section className="glass-card rounded-[2rem] ghost-border p-8 md:p-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(233,195,73,0.12),transparent_40%)]" />
         <div className="relative z-10 space-y-5 max-w-4xl">
@@ -378,7 +382,15 @@ export default function Stats({ setActiveTab }: StatsProps) {
                     className="w-full text-left rounded-[1.5rem] overflow-hidden border border-white/10 bg-white/[0.03] hover:border-primary/30 hover:shadow-[0_0_30px_rgba(233,195,73,0.12)] transition-all cursor-pointer group"
                   >
                     <div className="relative h-56 overflow-hidden">
-                      <img src={topAttentionLocation.img} alt={topAttentionLocation.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                      <img
+                        src={cldUrl(topAttentionLocation.img, { width: 800 })}
+                        srcSet={cldSrcSet(topAttentionLocation.img, [400, 800])}
+                        sizes="(min-width: 1024px) 50vw, 100vw"
+                        alt={topAttentionLocation.name}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      />
                       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
                       <div className="absolute top-4 left-4 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-tech uppercase tracking-[0.2em] text-primary">
                         {topAttentionLocation.chapter}

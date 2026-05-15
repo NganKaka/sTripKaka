@@ -15,6 +15,7 @@ export default defineConfig({
     hmr: process.env.DISABLE_HMR !== 'true',
   },
   build: {
+    target: 'es2020',
     rollupOptions: {
       output: {
         manualChunks(id) {

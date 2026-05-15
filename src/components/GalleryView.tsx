@@ -1,17 +1,13 @@
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { Mountain, ArrowLeft, Star, Download, Play, Pause, ChevronUp, ChevronDown, Share2 } from 'lucide-react';
-import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
+import { cachedFetchJson } from '../lib/apiCache';
+import { type GalleryNode, nodesFromLegacyImages, normalizeNode } from '../lib/gallery';
 import { useMusic } from '../contexts/MusicContext';
 import FadeInImage from '../lib/FadeInImage';
-
-type GalleryNode = {
-  title: string;
-  description: string;
-  images: [string, string, string];
-  image_tags: [string[], string[], string[]];
-};
+import Seo from './Seo';
 
 interface GalleryViewProps {
   setActiveTab: (tab: string) => void;
@@ -93,8 +89,6 @@ const isImageNoteFormVisible = (totalNotes: number) => totalNotes < MAX_IMAGE_NO
 
 const getImageNoteRemainingLabel = (remaining: number) => remaining === 1 ? '1 slot left' : `${remaining} slots left`;
 
-const normalizeNodeImages = (images: string[] = []): [string, string, string] => [images[0] || '', images[1] || '', images[2] || ''];
-
 const BANNED_REVIEW_WORDS = [
   'cặc', 'cc', 'lồn', 'loz', 'lz', 'l', 'ngu',
   'địt', 'dit', 'dm', 'dmm', 'vcl', 'vl', 'ml', 'óc chó', 'súc vật', 'đb', 'đéo',
@@ -123,41 +117,6 @@ const maskBannedWords = (comment: string) => {
     if (normalizedToken === 'l' || bannedSet.has(normalizedToken)) return '***';
     return token;
   });
-};
-
-const normalizeNode = (node: any): GalleryNode => {
-  const normalizeTags = (tags: any): [string[], string[], string[]] => {
-    const normalized = [0, 1, 2].map(index => {
-      const current = tags?.[index];
-      if (!Array.isArray(current)) return [];
-      return current
-        .filter((tag: unknown): tag is string => typeof tag === 'string')
-        .map(tag => tag.trim())
-        .filter(Boolean);
-    });
-    return normalized as [string[], string[], string[]];
-  };
-
-  return {
-    title: node?.title || '',
-    description: node?.description || '',
-    images: normalizeNodeImages(node?.images || []),
-    image_tags: normalizeTags(node?.image_tags),
-  };
-};
-
-const nodesFromLegacyImages = (images: string[] = []): GalleryNode[] => {
-  if (!images.length) return [];
-  const nodes: GalleryNode[] = [];
-  for (let i = 0; i < images.length; i += 3) {
-    nodes.push({
-      title: `Node ${nodes.length + 1}`,
-      description: '',
-      images: normalizeNodeImages(images.slice(i, i + 3)),
-      image_tags: [[], [], []],
-    });
-  }
-  return nodes;
 };
 
 const LOCATION_CONTENT: Record<string, {
@@ -201,6 +160,10 @@ function CircuitNode({ icon: Icon }: { icon: any }) {
       <div className="-rotate-45"><Icon size={20} /></div>
     </motion.div>
   );
+}
+
+function GalleryImageModal({ children }: { children: ReactNode }) {
+  return <AnimatePresence>{children}</AnimatePresence>;
 }
 
 export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onImageModalChange, onSlideshowChange }: GalleryViewProps) {
@@ -457,11 +420,10 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
     pushRecentView(locationId);
     trackLocationView(locationId, 'gallery');
 
-    fetch(apiUrl(`/locations/${locationId}`))
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then((data: LocationResponse) => {
+    cachedFetchJson<LocationResponse>(apiUrl(`/locations/${locationId}`))
+      .then((data) => {
         const backendNodes: GalleryNode[] = Array.isArray(data.gallery_nodes) && data.gallery_nodes.length
-          ? data.gallery_nodes.map(normalizeNode)
+          ? data.gallery_nodes.map(node => normalizeNode(node))
           : nodesFromLegacyImages(data.gallery_images || []);
         setNodes(backendNodes);
         setHeroImg(backendNodes[0]?.images[0] || data.img || '');
@@ -882,6 +844,9 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
         alt={alt}
         loading="lazy"
         decoding="async"
+        width={800}
+        srcSetWidths={[400, 800, 1200]}
+        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
         className={`w-full ${heightClass} object-cover rounded-lg transition-transform duration-500 group-hover:scale-[1.04]`}
       />
       <div className="absolute inset-2 rounded-lg bg-gradient-to-t from-background/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -923,6 +888,12 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
 
   return (
     <div className="space-y-16 relative w-full">
+      <Seo
+        title={`Gallery — ${heroLocationName} — Ngan's Trip`}
+        description={`A photo and video gallery from ${heroLocationName}, with reviews from travelers.`}
+        path={`/gallery/${locationId}`}
+        type="article"
+      />
       <div className="absolute left-6 md:left-12 top-[600px] bottom-0 w-[2px] bg-white/5 z-0" />
       <motion.div
         style={{ height: traceHeight }}
@@ -948,6 +919,9 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
             loading="eager"
             fetchPriority="high"
             decoding="async"
+            width={1600}
+            srcSetWidths={[800, 1200, 1600, 2000]}
+            sizes="100vw"
             className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-60 transition-transform duration-700 group-hover:scale-105"
           />
         )}
@@ -1234,7 +1208,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
       </section>
       </div>
 
-      <AnimatePresence>
+      <GalleryImageModal>
         {activeImage && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-8" onClick={closeImageModal}>
             <div className="absolute inset-0 bg-background/65 backdrop-blur-md" />
@@ -1386,7 +1360,7 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </GalleryImageModal>
 
       {!loading && nodes.length > 0 && !activeImage && createPortal(
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
