@@ -5,9 +5,14 @@ import { MagneticCard } from './Dashboard';
 import { apiUrl } from '../lib/api';
 import { cldUrl, cldSrcSet } from '../lib/cloudinary';
 import { prefetchTripDetail } from '../lib/prefetch';
+import { REGION_LABELS, REGION_ORDER, regionForLocation, type Region } from '../lib/regions';
 import Seo from './Seo';
 
 const ARCHIVE_FILTERS = ['ALL', 'CHAPTER I', 'CHAPTER II', 'CHAPTER III'];
+
+type RegionFilter = 'ALL' | Region;
+const REGION_FILTERS: RegionFilter[] = ['ALL', ...REGION_ORDER];
+const regionFilterLabel = (value: RegionFilter) => (value === 'ALL' ? 'ALL REGIONS' : REGION_LABELS[value].toUpperCase());
 const ARCHIVE_PAGE_SIZE = 6;
 
 const buildArchivesUrl = (skip: number, limit: number, activeFilter: string, searchQuery: string) => {
@@ -52,14 +57,18 @@ interface ArchivesProps {
 
 export default function Archives({ setActiveTab }: ArchivesProps) {
   const [activeFilter, setActiveFilter] = useState('ALL');
+  const [activeRegion, setActiveRegion] = useState<RegionFilter>('ALL');
   const [items, setItems] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isRegionOpen, setIsRegionOpen] = useState(false);
   const [displayCount, setDisplayCount] = useState(ARCHIVE_PAGE_SIZE);
+  const [loadError, setLoadError] = useState(false);
   const filterDropdownRef = useRef<HTMLDivElement | null>(null);
+  const regionDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const formatVisitedDate = (value: string) => {
     const date = new Date(value);
@@ -81,6 +90,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
     } else {
       setLoading(true);
       setDisplayCount(ARCHIVE_PAGE_SIZE);
+      setLoadError(false);
     }
 
     try {
@@ -100,6 +110,7 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
       console.error('Failed to fetch archives:', error);
       if (!isLoadMore) setItems([]);
       setHasMore(false);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -119,6 +130,9 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
     const handleClickOutside = (event: MouseEvent) => {
       if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
         setIsFilterOpen(false);
+      }
+      if (regionDropdownRef.current && !regionDropdownRef.current.contains(event.target as Node)) {
+        setIsRegionOpen(false);
       }
     };
 
@@ -143,7 +157,9 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
     await fetchItems(true, { filter: activeFilter, search: searchQuery });
   };
 
-  const filtered = visibleItems;
+  const filtered = activeRegion === 'ALL'
+    ? visibleItems
+    : visibleItems.filter(item => regionForLocation(item.id) === activeRegion);
 
   return (
     <div className="space-y-12">
@@ -176,12 +192,12 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
         </div>
       </header>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <span className="font-headline text-[10px] uppercase tracking-widest text-secondary/50">Filters:</span>
         <div ref={filterDropdownRef} className="relative w-full max-w-xs">
           <motion.button
             type="button"
-            onClick={() => setIsFilterOpen((prev) => !prev)}
+            onClick={() => { setIsFilterOpen((prev) => !prev); setIsRegionOpen(false); }}
             whileTap={{ scale: 0.96 }}
             className="flex w-full items-center justify-between rounded-3xl border border-cyan-200/30 bg-cyan-950/15 px-4 py-3 text-[10px] font-bold tracking-widest text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.10)] backdrop-blur-sm transition-all hover:border-cyan-200/60 hover:bg-cyan-900/20 hover:shadow-[0_0_24px_rgba(34,211,238,0.18)] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-shadow duration-200"
           >
@@ -223,7 +239,64 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
             )}
           </AnimatePresence>
         </div>
+
+        <div ref={regionDropdownRef} className="relative w-full max-w-xs">
+          <motion.button
+            type="button"
+            onClick={() => { setIsRegionOpen((prev) => !prev); setIsFilterOpen(false); }}
+            whileTap={{ scale: 0.96 }}
+            className="flex w-full items-center justify-between rounded-3xl border border-cyan-200/30 bg-cyan-950/15 px-4 py-3 text-[10px] font-bold tracking-widest text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.10)] backdrop-blur-sm transition-all hover:border-cyan-200/60 hover:bg-cyan-900/20 hover:shadow-[0_0_24px_rgba(34,211,238,0.18)] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-shadow duration-200"
+          >
+            <span>{regionFilterLabel(activeRegion)}</span>
+            <ChevronDown
+              size={16}
+              className={`text-cyan-200 transition-transform duration-300 ${isRegionOpen ? 'rotate-180' : ''}`}
+            />
+          </motion.button>
+
+          <AnimatePresence>
+            {isRegionOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -12, scale: 0.96 }}
+                animate={{ opacity: 1, y: 8, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-3xl border border-cyan-200/25 bg-slate-950/55 p-2 shadow-[0_18px_45px_rgba(15,23,42,0.45)] backdrop-blur-md"
+              >
+                <div className="space-y-1">
+                  {REGION_FILTERS.map((region) => (
+                    <motion.button
+                      key={region}
+                      type="button"
+                      onClick={() => {
+                        setActiveRegion(region);
+                        setIsRegionOpen(false);
+                      }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-[10px] font-bold tracking-widest transition-all ${activeRegion === region ? 'bg-cyan-400/15 text-cyan-100' : 'text-cyan-50/85 hover:bg-cyan-400/10 hover:text-cyan-100'}`}
+                    >
+                      {regionFilterLabel(region)}
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
+
+      {loadError && !loading && (
+        <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-[11px] font-tech uppercase tracking-[0.12em] text-rose-100">
+          <span>Could not load archives from the database.</span>
+          <button
+            type="button"
+            onClick={() => fetchItems(false, { filter: activeFilter, search: searchQuery })}
+            className="rounded-md border border-current/40 px-2 py-1 text-[10px] tracking-[0.14em] hover:bg-white/10 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -295,13 +368,15 @@ export default function Archives({ setActiveTab }: ArchivesProps) {
                         <p className="text-[10px] font-tech tracking-[0.18em] uppercase text-secondary/50">{(e.total_reviews || 0) > 0 ? `${e.total_reviews} reviews` : 'Default rating'}</p>
 
                         {/* Expandable Excerpt */}
-                        <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-500 ease-in-out">
-                          <div className="overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
-                            <p className="text-[11px] font-tech text-secondary/80 italic border-l-2 border-primary/50 pl-3 mt-3">
-                              "{e.full_description?.substring(0, 120)}..."
-                            </p>
+                        {e.full_description && (
+                          <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-500 ease-in-out">
+                            <div className="overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
+                              <p className="text-[11px] font-tech text-secondary/80 italic border-l-2 border-primary/50 pl-3 mt-3">
+                                "{e.full_description.substring(0, 120)}..."
+                              </p>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                       
                       <div className="flex justify-between items-end mt-4 gap-3">

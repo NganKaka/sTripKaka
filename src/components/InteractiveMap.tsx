@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import mapboxgl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { apiUrl, LOCATIONS_LIST_TTL_MS } from '../lib/api';
-import { cachedFetchJson } from '../lib/apiCache';
+import { staleWhileRevalidateFetch } from '../lib/apiCache';
 import vietnamGeoJson from '../lib/vnm.geo.json';
 
 type HighlightType = 'primary' | 'secondary' | 'highlight';
@@ -219,22 +219,33 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number, steps =
   }, []);
 
   useEffect(() => {
-    cachedFetchJson<DbLocation[]>(apiUrl('/locations'), LOCATIONS_LIST_TTL_MS)
-      .then((data) => {
-        const mapped = Array.isArray(data)
-          ? data
-              .slice()
-              .sort(sortByLatitudeAsc)
-              .map(toMapLocation)
-              .filter((item): item is LocationData => !!item)
-          : [];
-        setLocations(mapped);
-        initMap(mapped);
-      })
+    const url = apiUrl('/locations');
+    const { cached, fresh } = staleWhileRevalidateFetch<DbLocation[]>(url, LOCATIONS_LIST_TTL_MS);
+
+    const applyData = (data: DbLocation[] | unknown) => {
+      const mapped = Array.isArray(data)
+        ? data
+            .slice()
+            .sort(sortByLatitudeAsc)
+            .map(toMapLocation)
+            .filter((item): item is LocationData => !!item)
+        : [];
+      setLocations(mapped);
+      initMap(mapped);
+    };
+
+    if (cached && Array.isArray(cached.data)) {
+      applyData(cached.data);
+    }
+
+    fresh
+      .then(applyData)
       .catch(err => {
         console.error('Error fetching map locations:', err);
-        setLocations([]);
-        setMapLoaded(true);
+        if (!cached) {
+          setLocations([]);
+          setMapLoaded(true);
+        }
       });
   }, [initMap]);
 

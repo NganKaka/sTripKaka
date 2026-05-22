@@ -9,6 +9,8 @@ import { useMusic } from '../contexts/MusicContext';
 import FadeInImage from '../lib/FadeInImage';
 import Seo from './Seo';
 
+const SAMPLE_TRIPS_ENABLED = import.meta.env.VITE_ENABLE_SAMPLE_TRIPS === 'true';
+
 interface GalleryViewProps {
   setActiveTab: (tab: string) => void;
   locationId?: string;
@@ -438,24 +440,32 @@ export default function GalleryView({ setActiveTab, locationId = 'phu_quoc', onI
         setLoading(false);
       })
       .catch(() => {
-        const fallbacks: Record<string, string[]> = {
-          phu_quoc: [
-            '/phu_quoc/pq_landscape_sea.jpg', '/phu_quoc/pq_landscape_lake.jpg',
-            '/phu_quoc/pq_landscape_cafe_highlands.jpg', '/phu_quoc/pq_landscape_sea_.jpg',
-            '/phu_quoc/pq_landscape_lake_2.jpg', '/phu_quoc/pq_landscape_sea_2.jpg',
-            '/phu_quoc/pq_landscape_sea_3.jpg',
-          ],
-          hue: [
-            '/hue/hue_landscape_1.jpg', '/hue/hue_landscape_2.jpg',
-            '/hue/hue_landscape_3.jpg', '/hue/hue_landscape_4.jpg',
-            '/hue/hue_landscape_5.jpg', '/hue/hue_landscape_6.jpg',
-            '/hue/hue_landscape_7.jpg',
-          ],
-        };
-        const fallbackNodes = nodesFromLegacyImages(fallbacks[locationId] || fallbacks.phu_quoc);
-        setNodes(fallbackNodes);
-        setHeroImg(fallbackNodes[0]?.images[0] || '');
-        setHeroHeadline('Golden Hour Escape');
+        if (SAMPLE_TRIPS_ENABLED) {
+          const fallbacks: Record<string, string[]> = {
+            phu_quoc: [
+              '/phu_quoc/pq_landscape_sea.jpg', '/phu_quoc/pq_landscape_lake.jpg',
+              '/phu_quoc/pq_landscape_cafe_highlands.jpg', '/phu_quoc/pq_landscape_sea_.jpg',
+              '/phu_quoc/pq_landscape_lake_2.jpg', '/phu_quoc/pq_landscape_sea_2.jpg',
+              '/phu_quoc/pq_landscape_sea_3.jpg',
+            ],
+            hue: [
+              '/hue/hue_landscape_1.jpg', '/hue/hue_landscape_2.jpg',
+              '/hue/hue_landscape_3.jpg', '/hue/hue_landscape_4.jpg',
+              '/hue/hue_landscape_5.jpg', '/hue/hue_landscape_6.jpg',
+              '/hue/hue_landscape_7.jpg',
+            ],
+          };
+          const fallbackNodes = nodesFromLegacyImages(fallbacks[locationId] || fallbacks.phu_quoc);
+          setNodes(fallbackNodes);
+          setHeroImg(fallbackNodes[0]?.images[0] || '');
+          setHeroHeadline('Golden Hour Escape');
+          setHeroLocationName(locationId.replace(/_/g, ' '));
+          setLoading(false);
+          return;
+        }
+        setNodes([]);
+        setHeroImg('');
+        setHeroHeadline('');
         setHeroLocationName(locationId.replace(/_/g, ' '));
         setLoading(false);
       });

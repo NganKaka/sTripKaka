@@ -2,7 +2,11 @@ import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { Globe, Image as ImageIcon, MapPin } from 'lucide-react';
 import { apiUrl, LOCATIONS_LIST_TTL_MS } from '../lib/api';
-import { cachedFetchJson } from '../lib/apiCache';
+import { staleWhileRevalidateFetch } from '../lib/apiCache';
+
+const SAMPLE_TRIPS_ENABLED = import.meta.env.VITE_ENABLE_SAMPLE_TRIPS === 'true';
+
+type ChaptersStatus = 'loading' | 'success' | 'empty' | 'error';
 import { cldUrl, cldSrcSet } from '../lib/cloudinary';
 import { prefetchTripDetail } from '../lib/prefetch';
 import Seo, { SITE_URL } from './Seo';
@@ -299,36 +303,57 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
   const y2 = useTransform(scrollY, [0, 1000], [0, -250]);
   const y3 = useTransform(scrollY, [0, 1000], [0, -80]);
   const [dbChapters, setDbChapters] = useState<DbLocation[]>([]);
-  const [isLoadingChapters, setIsLoadingChapters] = useState(true);
-  const [chapterLoadError, setChapterLoadError] = useState(false);
+  const [chaptersStatus, setChaptersStatus] = useState<ChaptersStatus>('loading');
 
   const loadChapters = () => {
-    setIsLoadingChapters(true);
-    setChapterLoadError(false);
-    cachedFetchJson<DbLocation[]>(apiUrl('/locations'), LOCATIONS_LIST_TTL_MS)
+    const url = apiUrl('/locations');
+    const { cached, fresh } = staleWhileRevalidateFetch<DbLocation[]>(url, LOCATIONS_LIST_TTL_MS);
+
+    if (cached && Array.isArray(cached.data)) {
+      setDbChapters(cached.data);
+      setChaptersStatus(cached.data.length > 0 ? 'success' : 'empty');
+    } else {
+      setChaptersStatus('loading');
+    }
+
+    fresh
       .then((data) => {
-        setDbChapters(Array.isArray(data) && data.length > 0 ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setDbChapters(list);
+        setChaptersStatus(list.length > 0 ? 'success' : 'empty');
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('Error fetching chapters:', err);
-        setDbChapters([]);
-        setChapterLoadError(true);
-      })
-      .finally(() => setIsLoadingChapters(false));
+        if (!cached) {
+          setDbChapters([]);
+          setChaptersStatus('error');
+        }
+      });
   };
 
   useEffect(() => {
     loadChapters();
   }, []);
 
-  const displayList = dbChapters.length > 0 ? toRecentCards(dbChapters) : fallbackChapters;
-  const metrics = dbChapters.length > 0 ? computeMetrics(dbChapters) : fallbackMetrics;
-  const provinceCount = dbChapters.length > 0 ? toProvinceCount(dbChapters) : fallbackChapters.length;
-  const recentTripName = dbChapters.length > 0 ? getLatestTripName(dbChapters) : fallbackChapters[0].name;
-  const latestTripId = displayList[0]?.id;
-  const isUsingFallback = !isLoadingChapters && dbChapters.length === 0;
-  const statusLabel = chapterLoadError ? 'Using sample journeys while live trips are unavailable.' : 'Showing sample journeys until live trips are added.';
-  const statusTone = chapterLoadError ? 'border-rose-400/30 bg-rose-500/10 text-rose-100' : 'border-cyan-400/25 bg-cyan-500/10 text-cyan-100';
+  const hasRealData = dbChapters.length > 0;
+  const showSampleFallback = SAMPLE_TRIPS_ENABLED && !hasRealData;
+  const displayList = hasRealData
+    ? toRecentCards(dbChapters)
+    : (showSampleFallback ? fallbackChapters : []);
+  const metrics = hasRealData
+    ? computeMetrics(dbChapters)
+    : (showSampleFallback ? fallbackMetrics : [
+        { icon: Globe, value: '0', label: 'Expeditions' },
+        { icon: ImageIcon, value: '0', label: 'Total Images' },
+        { icon: MapPin, value: '0', label: 'Places Visited' },
+      ]);
+  const provinceCount = hasRealData
+    ? toProvinceCount(dbChapters)
+    : (showSampleFallback ? fallbackChapters.length : 0);
+  const recentTripName = hasRealData
+    ? getLatestTripName(dbChapters)
+    : (showSampleFallback ? fallbackChapters[0].name : '');
+  const latestTripId = chaptersStatus === 'success' ? displayList[0]?.id : undefined;
 
   return (
     <div className="space-y-24">
@@ -356,25 +381,29 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
             Người ta đi xa không phải để tìm nơi trốn chạy, mà để tìm một thế giới quan rộng lớn hơn.
           </p>
 
-          {isLoadingChapters && (
+          {chaptersStatus === 'loading' && (
             <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-tech uppercase tracking-[0.15em] text-secondary/70">
               <span className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
-              Loading live trips...
+              Please wait, loading trips from database...
             </div>
           )}
 
-          {isUsingFallback && (
-            <div className={`inline-flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-tech uppercase tracking-[0.12em] ${statusTone}`}>
-              <span>{statusLabel}</span>
-              {chapterLoadError && (
-                <button
-                  type="button"
-                  onClick={loadChapters}
-                  className="rounded-md border border-current/40 px-2 py-1 text-[10px] tracking-[0.14em] hover:bg-white/10 transition-colors"
-                >
-                  Retry
-                </button>
-              )}
+          {chaptersStatus === 'empty' && (
+            <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-tech uppercase tracking-[0.12em] text-secondary/80">
+              No trips found yet.
+            </div>
+          )}
+
+          {chaptersStatus === 'error' && (
+            <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-[11px] font-tech uppercase tracking-[0.12em] text-rose-100">
+              <span>Could not load trips from the database.</span>
+              <button
+                type="button"
+                onClick={loadChapters}
+                className="rounded-md border border-current/40 px-2 py-1 text-[10px] tracking-[0.14em] hover:bg-white/10 transition-colors"
+              >
+                Retry
+              </button>
             </div>
           )}
 
@@ -559,7 +588,10 @@ Một sự tái hiện trực quan về những hành trình đã qua. Mỗi đi
           <div>
             <h2 className="font-headline text-3xl font-bold tracking-tight text-on-surface">Recent Chapters</h2>
             <p className="text-secondary mt-2 font-body">
-              {isUsingFallback ? 'Sample journeys are shown while live trip data is unavailable.' : 'Real-time coordinates and journals from the database.'}
+              {chaptersStatus === 'loading' && 'Please wait, loading trips from database...'}
+              {chaptersStatus === 'success' && 'Real-time coordinates and journals from the database.'}
+              {chaptersStatus === 'empty' && 'No trips found yet.'}
+              {chaptersStatus === 'error' && 'Could not load trips from the database.'}
             </p>
           </div>
           <motion.button onClick={() => setActiveTab('Journal')} whileTap={{ scale: 0.96 }} className="text-primary font-bold text-sm tracking-wide hover:underline underline-offset-8 transition-all cursor-pointer">
@@ -568,6 +600,43 @@ Một sự tái hiện trực quan về những hành trình đã qua. Mỗi đi
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {chaptersStatus === 'loading' && displayList.length === 0 && (
+            [0, 1, 2].map((i) => (
+              <div
+                key={`skeleton-${i}`}
+                className="rounded-2xl overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/[0.08] h-[420px] animate-pulse"
+              >
+                <div className="h-52 bg-white/5" />
+                <div className="p-7 space-y-4">
+                  <div className="h-6 w-3/4 bg-white/5 rounded" />
+                  <div className="h-3 w-full bg-white/5 rounded" />
+                  <div className="h-3 w-5/6 bg-white/5 rounded" />
+                  <div className="h-px w-full bg-white/5 mt-6" />
+                  <div className="h-3 w-1/3 bg-white/5 rounded" />
+                </div>
+              </div>
+            ))
+          )}
+
+          {chaptersStatus === 'error' && displayList.length === 0 && (
+            <div className="md:col-span-3 rounded-2xl border border-rose-400/30 bg-rose-500/5 p-10 text-center space-y-4">
+              <p className="text-rose-100 font-tech text-xs tracking-widest uppercase">Could not load trips from the database.</p>
+              <button
+                type="button"
+                onClick={loadChapters}
+                className="rounded-md border border-rose-400/40 px-4 py-2 text-[11px] font-tech tracking-[0.15em] text-rose-100 hover:bg-rose-400/10 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {chaptersStatus === 'empty' && displayList.length === 0 && (
+            <div className="md:col-span-3 rounded-2xl border border-white/10 bg-white/[0.03] p-10 text-center">
+              <p className="text-secondary font-tech text-xs tracking-widest uppercase">No trips found yet.</p>
+            </div>
+          )}
+
           {displayList.slice(0, 3).map((c, i) => (
             <motion.div
               key={`${c.id}-${i}`}

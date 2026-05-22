@@ -1,6 +1,6 @@
 import { motion, useScroll, useSpring, useInView } from 'framer-motion';
 import { MapPin, Sun, Camera, ArrowRight, Quote, ArrowLeft } from 'lucide-react';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiUrl, pushRecentView, trackLocationView } from '../lib/api';
 import { cachedFetchJson } from '../lib/apiCache';
 import { countImagesFromData, flattenNodeImages, normalizeFeaturedImages } from '../lib/gallery';
@@ -148,6 +148,8 @@ const FALLBACK_BY_LOCATION: Record<string, LocationApiResponse> = {
 
 const getFallbackLocation = (locationId: string): LocationApiResponse => FALLBACK_BY_LOCATION[locationId] || FALLBACK_BY_LOCATION.phu_quoc;
 
+const SAMPLE_TRIPS_ENABLED = import.meta.env.VITE_ENABLE_SAMPLE_TRIPS === 'true';
+
 const buildTripState = (locationId: string, data: LocationApiResponse): TripState => {
   const galleryFromNodes = Array.isArray(data.gallery_nodes) ? flattenNodeImages(data.gallery_nodes) : [];
 
@@ -229,10 +231,12 @@ function FloatingImage({ src, alt, delay = 0, className = '' }: { src: string; a
 export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: TripDetailProps) {
   const [tripData, setTripData] = useState<TripState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const { activateMusic } = useMusic();
 
-  useEffect(() => {
+  const loadTrip = () => {
     setLoading(true);
+    setLoadError(false);
     pushRecentView(locationId);
     trackLocationView(locationId, 'mission_detail');
 
@@ -243,10 +247,21 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
         setLoading(false);
       })
       .catch(() => {
-        setTripData(buildTripState(locationId, getFallbackLocation(locationId)));
-        activateMusic(locationId, undefined);
+        if (SAMPLE_TRIPS_ENABLED) {
+          setTripData(buildTripState(locationId, getFallbackLocation(locationId)));
+          activateMusic(locationId, undefined);
+          setLoading(false);
+          return;
+        }
+        setTripData(null);
+        setLoadError(true);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    loadTrip();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationId]);
 
   const { scrollYProgress } = useScroll();
@@ -257,7 +272,35 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
       <div className="flex items-center justify-center py-40">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-secondary font-tech text-xs tracking-widest uppercase">Loading mission data...</p>
+          <p className="text-secondary font-tech text-xs tracking-widest uppercase">Please wait...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="max-w-md w-full glass-card rounded-2xl p-10 border border-rose-400/30 bg-rose-500/5 text-center space-y-6">
+          <p className="text-rose-100 font-tech text-xs tracking-widest uppercase">
+            Trip could not be loaded from the database.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              type="button"
+              onClick={loadTrip}
+              className="rounded-md border border-rose-400/40 px-5 py-2 text-[11px] font-tech tracking-[0.15em] uppercase text-rose-100 hover:bg-rose-400/10 transition-colors"
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('Journal')}
+              className="rounded-md border border-white/20 px-5 py-2 text-[11px] font-tech tracking-[0.15em] uppercase text-secondary hover:text-cyan-300 hover:border-cyan-400/40 transition-colors"
+            >
+              Back to Archives
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -268,20 +311,18 @@ export default function TripDetail({ setActiveTab, locationId = 'phu_quoc' }: Tr
   const featuredImgs = (tripData.featured || tripData.gallery || []).slice(0, 3);
   const [heroImg, img2, img3] = featuredImgs;
 
-  const tripJsonLd = useMemo(() => {
-    const province = PROVINCE_BY_LOCATION[locationId];
-    return {
-      '@context': 'https://schema.org',
-      '@type': 'Place',
-      name: tripData.title,
-      description: tripData.subtitle || tripData.desc1,
-      url: `${SITE_URL}/mission-detail/${locationId}`,
-      image: heroImg || tripData.poster || undefined,
-      ...(province
-        ? { address: { '@type': 'PostalAddress', addressRegion: province, addressCountry: 'VN' } }
-        : {}),
-    };
-  }, [locationId, tripData, heroImg]);
+  const province = PROVINCE_BY_LOCATION[locationId];
+  const tripJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Place',
+    name: tripData.title,
+    description: tripData.subtitle || tripData.desc1,
+    url: `${SITE_URL}/mission-detail/${locationId}`,
+    image: heroImg || tripData.poster || undefined,
+    ...(province
+      ? { address: { '@type': 'PostalAddress', addressRegion: province, addressCountry: 'VN' } }
+      : {}),
+  };
 
   return (
     <>
