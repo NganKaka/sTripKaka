@@ -1,33 +1,24 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Menu, Settings, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { apiUrl } from '../lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { useNotifications } from '../hooks/useNotifications';
+import type { NotificationItem } from '../types/notifications';
 
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
 }
 
-interface NotificationItem {
-  id: number;
-  location_id: string;
-  review_id: number | null;
-  image_note_id?: number | null;
-  title: string;
-  message: string;
-  is_read: boolean;
-  created_at: string;
-}
-
-interface NotificationsResponse {
-  unread_count: number;
-  notifications: NotificationItem[];
-}
-
 export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
   const tabs = ["Trips", "Stats"];
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const {
+    notifications,
+    unreadCount,
+    unreadBadge,
+    markAllAsRead,
+    removeNotification,
+    removeAllNotifications,
+  } = useNotifications();
   const [open, setOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -41,73 +32,10 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
     return `${day}-${month}-${year}`;
   };
 
-  const fetchNotifications = () => {
-    fetch(apiUrl('/notifications?limit=5'))
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch notifications');
-        return res.json();
-      })
-      .then((data: NotificationsResponse) => {
-        setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
-        setUnreadCount(typeof data.unread_count === 'number' ? data.unread_count : 0);
-      })
-      .catch(() => {
-        setNotifications([]);
-        setUnreadCount(0);
-      });
-  };
-
-  const markAllAsRead = () => {
-    fetch(apiUrl('/notifications/read-all?limit=5'), { method: 'POST' })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to mark notifications as read');
-        return res.json();
-      })
-      .then((data: NotificationsResponse) => {
-        setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
-        setUnreadCount(typeof data.unread_count === 'number' ? data.unread_count : 0);
-      })
-      .catch(() => {
-        setUnreadCount(0);
-        setNotifications(prev => prev.map(item => ({ ...item, is_read: true })));
-      });
-  };
-
-  const handleDeleteNotification = (notificationId: number) => {
-    fetch(apiUrl(`/notifications/${notificationId}`), { method: 'DELETE' })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to delete notification');
-        setNotifications(prev => prev.filter(item => item.id !== notificationId));
-        fetchNotifications();
-      })
-      .catch(() => {
-        setNotifications(prev => prev.filter(item => item.id !== notificationId));
-      });
-  };
-
-  const handleDeleteAllNotifications = () => {
-    fetch(apiUrl('/notifications'), { method: 'DELETE' })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to delete all notifications');
-        setNotifications([]);
-        setUnreadCount(0);
-      })
-      .catch(() => {
-        setNotifications([]);
-        setUnreadCount(0);
-      });
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    const id = window.setInterval(fetchNotifications, 10000);
-    return () => window.clearInterval(id);
-  }, []);
-
   useEffect(() => {
     if (!open) return;
     markAllAsRead();
-  }, [open]);
+  }, [markAllAsRead, open]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -130,8 +58,6 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
     setOpen(false);
     setActiveTab(`Gallery:${item.location_id}`);
   };
-
-  const unreadBadge = useMemo(() => (unreadCount > 99 ? '99+' : String(unreadCount)), [unreadCount]);
 
   const isTabActive = (tab: string) => {
     if (tab === 'Trips') return activeTab === 'Journal' || activeTab === 'Destinations';
@@ -233,7 +159,7 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                     <div className="flex items-center gap-2">
                       <motion.button
                         type="button"
-                        onClick={handleDeleteAllNotifications}
+                        onClick={removeAllNotifications}
                         whileTap={{ scale: 0.96 }}
                         disabled={notifications.length === 0}
                         className="text-[10px] font-tech uppercase tracking-[0.15em] text-secondary/70 hover:text-rose-400 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -264,7 +190,7 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                             </motion.button>
                             <motion.button
                               type="button"
-                              onClick={() => handleDeleteNotification(item.id)}
+                              onClick={() => removeNotification(item.id)}
                               whileTap={{ scale: 0.96 }}
                               className="shrink-0 rounded-full p-1 text-secondary/60 hover:text-rose-400 hover:bg-white/10 transition-colors cursor-pointer"
                               aria-label="Delete notification"
